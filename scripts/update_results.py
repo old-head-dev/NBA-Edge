@@ -297,7 +297,7 @@ def main():
     ).strftime("%Y-%m-%dT%H:%M:%SZ")
     events = fetch_all_events({
         "leagueID":      "NBA",
-        "finalized":     True,
+        "finalized":     "true",
         "startsAfter":   yesterday_start_utc,
         "startsBefore":  today_end_utc,
         "oddID":         "points-home-game-sp-home,points-all-game-ou-over",
@@ -321,7 +321,7 @@ def main():
     yesterday_end_utc = today_end_utc  # same upper bound: yesterday ET + 2 days UTC
     history_events = fetch_all_events({
         "leagueID":     "NBA",
-        "finalized":    True,
+        "finalized":    "true",
         "startsAfter":  three_weeks_ago_utc,
         "startsBefore": yesterday_end_utc,
     })
