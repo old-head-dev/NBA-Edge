@@ -301,7 +301,7 @@ def main():
         "startsAfter":   yesterday_start_utc,
         "startsBefore":  today_end_utc,
         "oddID":         "points-home-game-sp-home,points-all-game-ou-over",
-        "expandResults": true,
+        "expandResults": "true",
     })
 
     if not events:
