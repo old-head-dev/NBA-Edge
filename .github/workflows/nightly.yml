@@ -1,0 +1,42 @@
+name: Nightly Results Update
+
+on:
+  schedule:
+    # 14:00 UTC = 9:00 AM EST (Nov–Mar) / 10:00 AM EDT (Mar–Nov)
+    # GitHub cron is fixed UTC — does NOT auto-adjust for DST.
+    # 14:00 UTC is safe year-round: all NBA games (latest ~1am ET) are
+    # finalized well before this fires regardless of the season.
+    - cron: '0 14 * * *'
+  workflow_dispatch:  # allows manual trigger from GitHub UI
+
+permissions:
+  contents: write  # needed to commit results.json back to repo
+
+jobs:
+  update-results:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run results updater
+        env:
+          SGO_API_KEY: ${{ secrets.SGO_API_KEY }}
+        run: python scripts/update_results.py
+
+      - name: Commit updated results
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/results.json
+          git diff --staged --quiet || git commit -m "results: $(date -u +'%Y-%m-%d')"
+          git push
