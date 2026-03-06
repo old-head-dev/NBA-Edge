@@ -51,10 +51,36 @@
       "ou_result": "over",
       "edge_ats": "LOSS",
       "under_result": null
+    },
+    {
+      "event_id": "bSSk6SZjrOgCrcpZlPtx",
+      "date": "2026-03-05",
+      "starts_at": "2026-03-06T00:00:00.000Z",
+      "matchup": "UTA @ WAS",
+      "away": "UTA",
+      "home": "WAS",
+      "away_score": 122,
+      "home_score": 112,
+      "away_fatigue": 7.0,
+      "home_fatigue": 2.0,
+      "away_scenario": "A",
+      "home_scenario": null,
+      "away_detail": "BTB road trip \u00b7 121mi",
+      "home_detail": "Home court",
+      "fatigue_diff": 5.0,
+      "edge": "HOME",
+      "flagged_team": "UTA",
+      "both_tired": false,
+      "close_spread": -4.5,
+      "close_total": 240.5,
+      "ats_result": "away",
+      "ou_result": "under",
+      "edge_ats": "LOSS",
+      "under_result": null
     }
   ],
   "meta": {
-    "last_updated": "2026-03-05 16:06 ET",
-    "total_flagged": 2
+    "last_updated": "2026-03-06 09:47 ET",
+    "total_flagged": 3
   }
 }
