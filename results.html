@@ -107,17 +107,17 @@ footer{margin-top:40px;padding:20px 32px;border-top:1px solid var(--border);
 <a class="logo" href="https://old-head-dev.github.io/NBA-Edge/" style="text-decoration:none;">NBA<span>EDGE</span></a>
   <div class="header-right">
     <span class="last-updated" id="last-updated">Loading...</span>
-    <a class="nav-link" href="nba_edge_v2.html">← FATIGUE MODEL</a>
+    <a class="nav-link" href="nba_edge_v2.html">← BETTING SIGNALS</a>
   </div>
 </header>
 
 <div class="main">
   <!-- SUMMARY -->
   <div class="summary-row" id="summary-row">
-    <div class="stat-card"><div class="stat-label">Total Flagged</div><div class="stat-value" id="s-total">—</div></div>
-    <div class="stat-card edge"><div class="stat-label">Edge W-L</div><div class="stat-value" id="s-edge-wl">—</div><div class="stat-sub" id="s-edge-pct">—</div></div>
-    <div class="stat-card win"><div class="stat-label">Edge Wins</div><div class="stat-value" id="s-wins">—</div></div>
-    <div class="stat-card loss"><div class="stat-label">Edge Losses</div><div class="stat-value" id="s-losses">—</div></div>
+    <div class="stat-card"><div class="stat-label">Total Logged</div><div class="stat-value" id="s-total">—</div></div>
+    <div class="stat-card edge"><div class="stat-label">Spread W-L</div><div class="stat-value" id="s-edge-wl">—</div><div class="stat-sub" id="s-edge-pct">—</div></div>
+    <div class="stat-card win"><div class="stat-label">Spread Wins</div><div class="stat-value" id="s-wins">—</div></div>
+    <div class="stat-card loss"><div class="stat-label">Spread Losses</div><div class="stat-value" id="s-losses">—</div></div>
     <div class="stat-card"><div class="stat-label">Under W-L</div><div class="stat-value" id="s-under-wl">—</div><div class="stat-sub" id="s-under-pct">—</div></div>
     <div class="stat-card"><div class="stat-label">No Line Data</div><div class="stat-value" id="s-no-line">—</div></div>
     <div class="stat-card edge"><div class="stat-label">Combined W-L</div><div class="stat-value" id="s-combined-wl">—</div><div class="stat-sub" id="s-combined-pct">—</div></div>
@@ -128,7 +128,7 @@ footer{margin-top:40px;padding:20px 32px;border-top:1px solid var(--border);
     <div class="roi-title">📊 Model Validation</div>
     <div class="roi-grid">
       <div class="roi-block">
-        <div class="roi-label">DIRECTIONAL EDGE ATS (need 50+ samples)</div>
+        <div class="roi-label">SPREAD EDGE — BET AWAY (need 50+ samples)</div>
         <div class="roi-stat" id="roi-edge" style="color:var(--muted)">—</div>
         <div class="roi-bar-wrap"><div class="roi-bar green" id="roi-edge-bar" style="width:0%"></div></div>
       </div>
@@ -143,11 +143,8 @@ footer{margin-top:40px;padding:20px 32px;border-top:1px solid var(--border);
   <!-- FILTERS -->
   <div class="filter-row">
     <button class="filter-btn active" onclick="setFilter('all',this)">ALL</button>
-    <button class="filter-btn" onclick="setFilter('edge',this)">EDGE ONLY</button>
-    <button class="filter-btn" onclick="setFilter('under',this)">BOTH TIRED</button>
-    <span class="filter-sep">|</span>
-    <button class="filter-btn active" id="btn-home" onclick="toggleEdge('home',this)">HOME EDGE</button>
-    <button class="filter-btn active" id="btn-away" onclick="toggleEdge('away',this)">AWAY EDGE</button>
+    <button class="filter-btn" onclick="setFilter('spread',this)">SPREAD BETS</button>
+    <button class="filter-btn" onclick="setFilter('under',this)">UNDER BETS</button>
     <span class="filter-sep">|</span>
     <button class="filter-btn active" id="btn-win"  onclick="toggleResult('win',this)">WINS</button>
     <button class="filter-btn active" id="btn-loss" onclick="toggleResult('loss',this)">LOSSES</button>
@@ -166,12 +163,12 @@ footer{margin-top:40px;padding:20px 32px;border-top:1px solid var(--border);
           <th class="sortable" onclick="sortBy('away_fatigue')">AWAY FAT <span class="sort-arrow">↕</span></th>
           <th class="sortable" onclick="sortBy('home_fatigue')">HOME FAT <span class="sort-arrow">↕</span></th>
           <th class="sortable" onclick="sortBy('fatigue_diff')">DIFF <span class="sort-arrow">↕</span></th>
-          <th>EDGE</th>
+          <th>SIGNAL</th>
           <th>SPREAD</th>
           <th>TOTAL</th>
           <th>ATS</th>
           <th>O/U</th>
-          <th>EDGE RESULT</th>
+          <th>SPREAD RESULT</th>
           <th>UNDER RESULT</th>
         </tr>
       </thead>
@@ -184,7 +181,7 @@ footer{margin-top:40px;padding:20px 32px;border-top:1px solid var(--border);
 
 <footer>
   <span>NBA EDGE MODEL — RESULTS LOGGER</span>
-  <span>DATA: SPORTSGAMEODDS · FATIGUE MODEL v1.1</span>
+  <span>DATA: SPORTSGAMEODDS · BETTING SIGNAL MODEL v2.0</span>
   <span>UPDATED DAILY 9AM ET</span>
 </footer>
 
@@ -193,7 +190,6 @@ let ALL_GAMES = [];
 let sortKey   = 'date';
 let sortDesc  = true;
 let filterMode = 'all';
-let edgeShow   = new Set(['home','away']);
 let resultShow = new Set(['win','loss','push','na']);
 
 async function loadData() {
@@ -226,14 +222,31 @@ function badgeHtml(result) {
   return `<span class="badge badge-${cls}">${r}</span>`;
 }
 
-function edgePill(edge) {
-  if(edge === 'HOME') return '<span class="edge-pill edge-home">HOME ↑</span>';
-  if(edge === 'AWAY') return '<span class="edge-pill edge-away">AWAY ↑</span>';
-  return '<span class="edge-pill edge-even">EVEN</span>';
+// Derive signal type — handles both v2.0 records (have signal_type field)
+// and legacy v1.x records (derive from edge/both_tired fields).
+function getSignalType(g) {
+  if(g.signal_type) return g.signal_type;
+  if(g.both_tired && g.edge === 'AWAY') return 'both';
+  if(g.both_tired) return 'under';
+  if(g.edge === 'AWAY') return 'spread';
+  return 'other'; // legacy HOME EDGE records — no v2.0 signal
+}
+
+function signalPill(g) {
+  const st = getSignalType(g);
+  if(st === 'both')   return '<span class="edge-pill" style="background:rgba(255,16,96,0.1);color:var(--critical);border:1px solid rgba(255,16,96,0.3)">SPREAD+UNDER</span>';
+  if(st === 'spread') return '<span class="edge-pill" style="background:rgba(48,208,128,0.12);color:var(--green);border:1px solid rgba(48,208,128,0.3)">SPREAD</span>';
+  if(st === 'under')  return '<span class="edge-pill" style="background:rgba(200,100,255,0.1);color:#c864ff;border:1px solid rgba(200,100,255,0.3)">UNDER</span>';
+  return '<span class="edge-pill edge-even">LEGACY</span>';
 }
 
 function getResultKey(game) {
-  if(game.both_tired && game.under_result) return game.under_result.toLowerCase();
+  const st = getSignalType(game);
+  if(st === 'under' || (st === 'both' && !game.edge_ats)){
+    const r = game.under_result;
+    if(!r) return 'na';
+    return r.toLowerCase();
+  }
   const r = game.edge_ats;
   if(!r) return 'na';
   return r.toLowerCase();
@@ -241,10 +254,9 @@ function getResultKey(game) {
 
 function applyFilters(games) {
   return games.filter(g => {
-    if(filterMode === 'edge'  && g.edge === 'EVEN') return false;
-    if(filterMode === 'under' && !g.both_tired) return false;
-    const edgeKey = g.edge === 'HOME' ? 'home' : g.edge === 'AWAY' ? 'away' : null;
-    if(edgeKey && !edgeShow.has(edgeKey)) return false;
+    const st = getSignalType(g);
+    if(filterMode === 'spread' && st !== 'spread' && st !== 'both') return false;
+    if(filterMode === 'under'  && st !== 'under'  && st !== 'both') return false;
     const rKey = getResultKey(g);
     if(!resultShow.has(rKey)) return false;
     return true;
@@ -263,33 +275,33 @@ function render() {
 
   // Summary stats
   const total = ALL_GAMES.length;
-  const withLine = ALL_GAMES.filter(g => g.edge_ats !== null && g.edge_ats !== undefined);
-  const wins   = withLine.filter(g => g.edge_ats === 'WIN').length;
-  const losses = withLine.filter(g => g.edge_ats === 'LOSS').length;
-  const pushes = withLine.filter(g => g.edge_ats === 'PUSH').length;
+  const spreadGames = ALL_GAMES.filter(g => { const st=getSignalType(g); return st==='spread'||st==='both'; });
+  const underGames  = ALL_GAMES.filter(g => { const st=getSignalType(g); return st==='under' ||st==='both'; });
+
+  const wins   = spreadGames.filter(g => g.edge_ats === 'WIN').length;
+  const losses = spreadGames.filter(g => g.edge_ats === 'LOSS').length;
+  const pushes = spreadGames.filter(g => g.edge_ats === 'PUSH').length;
   const noLine = ALL_GAMES.filter(g => g.close_spread === null || g.close_spread === undefined).length;
 
-  const underGames = ALL_GAMES.filter(g => g.both_tired && g.under_result);
   const underWins  = underGames.filter(g => g.under_result === 'WIN').length;
   const underLoss  = underGames.filter(g => g.under_result === 'LOSS').length;
 
-  const edgePct  = withLine.length > 0 ? Math.round(wins/(wins+losses)*100) : null;
-  const underPct = underGames.length > 0 ? Math.round(underWins/(underWins+underLoss)*100) : null;
-  
-  const combined = [...withLine, ...underGames.filter(g => !withLine.includes(g))];
-  const combinedWins = ALL_GAMES.filter(g => g.edge_ats === 'WIN' || g.under_result === 'WIN').length;
+  const edgePct  = (wins+losses) > 0 ? Math.round(wins/(wins+losses)*100) : null;
+  const underPct = (underWins+underLoss) > 0 ? Math.round(underWins/(underWins+underLoss)*100) : null;
+
+  const combinedWins   = ALL_GAMES.filter(g => g.edge_ats === 'WIN' || g.under_result === 'WIN').length;
   const combinedLosses = ALL_GAMES.filter(g => g.edge_ats === 'LOSS' || g.under_result === 'LOSS').length;
-  const combinedPct = (combinedWins + combinedLosses) > 0 ? Math.round(combinedWins/(combinedWins+combinedLosses)*100) : null;
+  const combinedPct = (combinedWins+combinedLosses) > 0 ? Math.round(combinedWins/(combinedWins+combinedLosses)*100) : null;
   
   document.getElementById('s-total').textContent    = total;
-  document.getElementById('s-edge-wl').textContent  = withLine.length ? `${wins}-${losses}` : '—';
+  document.getElementById('s-edge-wl').textContent  = (wins+losses) ? `${wins}-${losses}` : '—';
   document.getElementById('s-edge-pct').textContent = edgePct !== null ? `${edgePct}% win rate` : 'Awaiting data';
   document.getElementById('s-wins').textContent     = wins;
   document.getElementById('s-losses').textContent   = losses;
-  document.getElementById('s-under-wl').textContent = underGames.length ? `${underWins}-${underLoss}` : '—';
+  document.getElementById('s-under-wl').textContent = (underWins+underLoss) ? `${underWins}-${underLoss}` : '—';
   document.getElementById('s-under-pct').textContent= underPct !== null ? `${underPct}% win rate` : 'Awaiting data';
   document.getElementById('s-no-line').textContent  = noLine;
-  document.getElementById('s-combined-wl').textContent = (combinedWins + combinedLosses) ? `${combinedWins}-${combinedLosses}` : '—';
+  document.getElementById('s-combined-wl').textContent = (combinedWins+combinedLosses) ? `${combinedWins}-${combinedLosses}` : '—';
   document.getElementById('s-combined-pct').textContent = combinedPct !== null ? `${combinedPct}% win rate` : 'Awaiting data';
 
   // ROI bars
@@ -327,22 +339,21 @@ function render() {
       : '<span style="color:var(--muted)">—</span>';
     const totalDisplay  = g.close_total !== null && g.close_total !== undefined
       ? g.close_total : '<span style="color:var(--muted)">—</span>';
-    const underBadge    = g.both_tired ? '<span class="under-pill">BOTH↓</span>' : '';
 
     return `<tr>
       <td class="td-date">${g.date}</td>
-      <td class="td-matchup">${g.away} @ ${g.home}${underBadge}</td>
+      <td class="td-matchup">${g.away} @ ${g.home}</td>
       <td class="td-score">${g.away_score}–${g.home_score}</td>
       <td class="td-fat" style="color:${aSC}">${g.away_fatigue.toFixed(1)}</td>
       <td class="td-fat" style="color:${hSC}">${g.home_fatigue.toFixed(1)}</td>
       <td class="td-mono" style="color:var(--accent)">${g.fatigue_diff.toFixed(1)}</td>
-      <td>${edgePill(g.edge)}</td>
+      <td>${signalPill(g)}</td>
       <td class="td-line">${spreadDisplay}</td>
       <td class="td-line">${totalDisplay}</td>
       <td class="td-mono">${g.ats_result ? g.ats_result.toUpperCase() : '—'}</td>
       <td class="td-mono">${g.ou_result  ? g.ou_result.toUpperCase()  : '—'}</td>
       <td>${badgeHtml(g.edge_ats)}</td>
-      <td>${g.both_tired ? badgeHtml(g.under_result) : '<span class="badge-na">—</span>'}</td>
+      <td>${g.under_result ? badgeHtml(g.under_result) : '<span class="badge-na">—</span>'}</td>
     </tr>`;
   }).join('');
 
@@ -362,16 +373,10 @@ function sortBy(key) {
 function setFilter(mode, btn) {
   filterMode = mode;
   document.querySelectorAll('.filter-btn').forEach(b => {
-    if(['all','edge','under'].some(x => b.getAttribute('onclick')?.includes(`'${x}'`)))
+    if(['all','spread','under'].some(x => b.getAttribute('onclick')?.includes(`'${x}'`)))
       b.classList.remove('active');
   });
   btn.classList.add('active');
-  render();
-}
-
-function toggleEdge(edge, btn) {
-  if(edgeShow.has(edge)) edgeShow.delete(edge); else edgeShow.add(edge);
-  btn.classList.toggle('active', edgeShow.has(edge));
   render();
 }
 
