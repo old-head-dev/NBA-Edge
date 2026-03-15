@@ -547,7 +547,19 @@ def main():
         signal_types = [s["type"] for s in signals]
         has_spread = "spread" in signal_types
         has_under  = "under"  in signal_types
-        signal_type = "both" if (has_spread and has_under) else signal_types[0]
+
+        # Gate spread signal: home must be favored (close_spread < 0)
+        outcomes_pre = compute_outcomes(event)
+        close_spread_pre = outcomes_pre["close_spread"]
+        if has_spread and (close_spread_pre is None or close_spread_pre >= 0):
+            has_spread = False
+            print(f"  Spread signal voided for {away} @ {home}: home not favored (spread={close_spread_pre})")
+
+        if not has_spread and not has_under:
+            print(f"  Skip {away} @ {home}: no valid signals after spread gate")
+            continue
+
+        signal_type = "both" if (has_spread and has_under) else ("spread" if has_spread else "under")
 
         # Edge direction (kept for display/legacy)
         if diff > 0:
@@ -563,8 +575,8 @@ def main():
         # Both tired flag (raw, for display)
         both_tired = away_fat >= 5 and home_fat >= 5
 
-        # Outcomes
-        outcomes = compute_outcomes(event)
+        # Outcomes (already fetched above for spread gate)
+        outcomes = outcomes_pre
 
         # ATS grading
         ats_result = None
