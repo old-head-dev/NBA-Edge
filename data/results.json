@@ -161,10 +161,37 @@
       "ou_result": "under",
       "edge_ats": "LOSS",
       "under_result": null
+    },
+    {
+      "event_id": "uZhlst9RQFHLyMh8VUIW",
+      "date": "2026-03-18",
+      "starts_at": "2026-03-19T00:00:00.000Z",
+      "matchup": "UTA @ MIN",
+      "away": "UTA",
+      "home": "MIN",
+      "away_score": 86,
+      "home_score": 147,
+      "away_fatigue": 0,
+      "home_fatigue": 4.0,
+      "away_scenario": null,
+      "home_scenario": "home-home",
+      "away_detail": "Road, full rest",
+      "home_detail": "Home BTB",
+      "fatigue_diff": 4.0,
+      "edge": "AWAY",
+      "flagged_team": "MIN",
+      "both_tired": false,
+      "signal_type": "spread",
+      "close_spread": -13.0,
+      "close_total": 231.5,
+      "ats_result": "home",
+      "ou_result": "over",
+      "edge_ats": "LOSS",
+      "under_result": null
     }
   ],
   "meta": {
-    "last_updated": "2026-03-16 09:11 ET",
-    "total_flagged": 6
+    "last_updated": "2026-03-19 09:04 ET",
+    "total_flagged": 7
   }
 }
