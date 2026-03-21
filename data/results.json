@@ -188,10 +188,37 @@
       "ou_result": "over",
       "edge_ats": "LOSS",
       "under_result": null
+    },
+    {
+      "event_id": "DIqDZJOoqsB5YmoDMXp4",
+      "date": "2026-03-20",
+      "starts_at": "2026-03-20T23:30:00.000Z",
+      "matchup": "GSW @ DET",
+      "away": "GSW",
+      "home": "DET",
+      "away_score": 101,
+      "home_score": 115,
+      "away_fatigue": 2.0,
+      "home_fatigue": 6.0,
+      "away_scenario": null,
+      "home_scenario": "C",
+      "away_detail": "Road 1d rest ",
+      "home_detail": "BTB away\u2192home \u00b7 396mi",
+      "fatigue_diff": 4.0,
+      "edge": "AWAY",
+      "flagged_team": "DET",
+      "both_tired": false,
+      "signal_type": "spread",
+      "close_spread": -5.5,
+      "close_total": 218.5,
+      "ats_result": "home",
+      "ou_result": "under",
+      "edge_ats": "LOSS",
+      "under_result": null
     }
   ],
   "meta": {
-    "last_updated": "2026-03-19 09:04 ET",
-    "total_flagged": 7
+    "last_updated": "2026-03-21 08:48 ET",
+    "total_flagged": 8
   }
 }
