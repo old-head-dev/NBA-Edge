@@ -105,7 +105,8 @@ def get_utc_offset(arena, date_str):
     offset = local.utcoffset().total_seconds() / 3600
     return offset
 
-def estimate_btb_sleep(from_arena, to_arena, prev_tip_local_hr=20.0, date_str=None):
+def estimate_btb_sleep(from_arena, to_arena, prev_tip_local_hr=20.0, tonight_tip_local_hr=19.0, date_str=None):
+    """Canonical sleep formula matching nba_backtest.js."""
     dist = get_dist(from_arena, to_arena)
     flight_hrs = dist / 500
     to_tz   = get_utc_offset(to_arena,   date_str or "2026-01-01")
@@ -115,22 +116,24 @@ def estimate_btb_sleep(from_arena, to_arena, prev_tip_local_hr=20.0, date_str=No
     departure_dest = game_end + 2.5 + tz_shift
     landing_dest   = departure_dest + flight_hrs
     hotel_arrival  = landing_dest + 0.75
-    wake_up        = 34.0  # 10am next day
-    hotel_sleep    = max(0, wake_up - hotel_arrival)
-    plane_after_midnight = max(0, landing_dest - max(departure_dest, 24.0))
-    plane_sleep    = plane_after_midnight * 0.5
-    total          = hotel_sleep + plane_sleep
+    # Canonical wake-up: 3 hours before tonight's tip (raw local hour, 0-24 scale)
+    wake_up = tonight_tip_local_hr - 3.0
+    hotel_sleep = max(0, wake_up - hotel_arrival)
+    # Canonical plane sleep: min(60% of flight, hours past midnight) at 50% quality
+    midnight_delta = hotel_arrival - 24
+    plane_sleep_raw = min(flight_hrs * 0.6, midnight_delta) if midnight_delta > 0 else 0
+    total = hotel_sleep + (plane_sleep_raw * 0.5)
     return {"dist": dist, "flight_hrs": round(flight_hrs,1),
             "total": round(total,1), "tz_delta": tz_shift}
 
 def compute_fatigue_score(scenario, is_btb, effective_sleep, tz_delta, prev_late, density_tag, altitude_penalty=0):
+    """Canonical scoring weights matching nba_backtest.js."""
     base = 0
     if is_btb:
         base = {"A":5,"C":4,"B":3,"home-home":2}.get(scenario, 2)
     sleep_mod = 0
     if is_btb and effective_sleep is not None:
-        if   effective_sleep < 2: sleep_mod = 5
-        elif effective_sleep < 4: sleep_mod = 3
+        if   effective_sleep < 4: sleep_mod = 4
         elif effective_sleep < 6: sleep_mod = 2
         elif effective_sleep < 7: sleep_mod = 1
     tz_mod      = min(tz_delta * 0.5, 1.5) if tz_delta > 0 else 0
@@ -140,7 +143,7 @@ def compute_fatigue_score(scenario, is_btb, effective_sleep, tz_delta, prev_late
 
 def analyze_fatigue(team, is_home, days_rest, prev_arena, home_team, was_home_last,
                     games_in4=1, games_in6=1, prev_tip_hr=19.5, prev_late=False,
-                    recent_altitude=False, date_str=None):
+                    recent_altitude=False, date_str=None, tonight_tip_local_hr=19.0):
     if days_rest is None:
         return {"score": 0, "scenario": None, "detail": "Rest unknown"}
 
@@ -158,8 +161,8 @@ def analyze_fatigue(team, is_home, days_rest, prev_arena, home_team, was_home_la
             score = compute_fatigue_score(None, False, 99, 0, False, density_tag, 0)
             return {"score": score, "scenario": None, "detail": "Home court", "is_btb": False}
         if not was_home_last:
-            s = estimate_btb_sleep(prev_arena or team, home_team, prev_tip_hr, date_str)
-            adj = s["total"]
+            s = estimate_btb_sleep(prev_arena or team, home_team, prev_tip_hr, tonight_tip_local_hr, date_str)
+            adj = round((s["total"] + 1.5) * 10) / 10  # +1.5 own-bed bonus (canonical)
             score = compute_fatigue_score("C", True, adj, s["tz_delta"], prev_late, density_tag, 0)
             return {"score": score, "scenario": "C", "detail": f"BTB away→home · {s['dist']}mi", "is_btb": True, "sleep": adj}
         else:
@@ -192,30 +195,44 @@ def analyze_fatigue(team, is_home, days_rest, prev_arena, home_team, was_home_la
 
     # Scenario A
     from_arena = prev_arena or team
-    s = estimate_btb_sleep(from_arena, home_team, prev_tip_hr, date_str)
+    s = estimate_btb_sleep(from_arena, home_team, prev_tip_hr, tonight_tip_local_hr, date_str)
     adj = max(0, s["total"])
     score = compute_fatigue_score("A", True, adj, s["tz_delta"], prev_late, density_tag, alt_penalty)
     return {"score": score, "scenario": "A", "detail": f"BTB road trip · {s['dist']}mi", "is_btb": True, "sleep": round(adj,1)}
 
-def get_betting_signals(away_f, home_f):
+# Team quality: wpct < .350 is toxic (36.7% ATS combined)
+TANK_WATCH = {"UTA", "WAS", "POR", "CHA", "BKN"}
+
+def get_betting_signals(away_f, home_f, away_abbr=None, home_abbr=None):
     """
-    Mirrors getBettingSignals() in nba_edge_v2.html exactly.
-    Returns a list of dicts — can contain both 'spread' and 'under'.
+    V2 signal engine — mirrors getBettingSignals() in nba_edge_v2.html.
+    Returns a list of dicts — a game can fire multiple signals.
     """
     signals = []
     diff  = away_f["score"] - home_f["score"]  # positive = away worse
     delta = abs(diff)
 
-    # UNDER signal: both >= 5, away = Scenario A (road-trip BTB only)
+    # UNDER signal: both >= 5, away = Scenario A (road-trip BTB only — B excluded at 52%)
     if (away_f["score"] >= 5 and home_f["score"] >= 5
             and away_f.get("is_btb") and away_f.get("scenario") == "A"):
-        strong = home_f.get("scenario") in ("home-home", "C")
-        signals.append({"type": "under", "confidence": "+++" if strong else "++"})
+        home_scen = home_f.get("scenario")
+        if home_scen == "home-home":
+            conf = "+++"
+        elif home_scen == "C":
+            conf = "++"
+        else:
+            conf = "+"
+        signals.append({"type": "under", "confidence": conf})
 
-    # SPREAD signal: home more fatigued (diff < 0), home BTB non-B, delta >= 4
-    if (diff < 0 and delta >= 4
-            and home_f.get("is_btb") and home_f.get("scenario") != "B"):
+    # SPREAD signal: home more fatigued (AWAY EDGE), delta >= 4
+    # Removed scenario restriction — any home BTB qualifies at delta >= 4
+    if diff < 0 and delta >= 4 and home_f.get("is_btb"):
         signals.append({"type": "spread"})
+
+    # SPREAD-FLIP signal: away more fatigued (HOME EDGE), delta >= 4
+    # Market over-adjusts for away fatigue — bet fatigued away team ATS
+    if diff > 0 and delta >= 4 and away_f.get("is_btb"):
+        signals.append({"type": "spread-flip"})
 
     return signals
 
@@ -522,24 +539,39 @@ def main():
         home_score = float(home_pts)
         away_score = float(total_pts) - home_score
 
+        # Compute tonight's tip time in home arena local hours
+        tonight_tip_local_hr = 19.0  # default 7pm
+        starts_at_raw = event.get("status", {}).get("startsAt", "")
+        if starts_at_raw:
+            try:
+                game_dt = datetime.fromisoformat(starts_at_raw.replace("Z", "+00:00"))
+                home_tz = ZoneInfo(ARENAS.get(home, {}).get("tz_name", "America/New_York"))
+                game_local = game_dt.astimezone(home_tz)
+                tonight_tip_local_hr = game_local.hour + game_local.minute / 60
+                if tonight_tip_local_hr < 12:
+                    tonight_tip_local_hr += 24  # push into 0-48 scale
+            except Exception:
+                pass
+
         # Fatigue scores
         hr = calc_rest(home, yesterday)
         ar = calc_rest(away, yesterday)
 
         home_f = analyze_fatigue(home, True,  hr["days_rest"], hr["prev_arena"], home,
                                  hr["was_home_last"], hr["games_in4"], hr["games_in6"],
-                                 hr["prev_tip_hr"], hr["prev_late"], hr["recent_altitude"], yesterday)
+                                 hr["prev_tip_hr"], hr["prev_late"], hr["recent_altitude"],
+                                 yesterday, tonight_tip_local_hr)
         away_f = analyze_fatigue(away, False, ar["days_rest"], ar["prev_arena"], home,
                                  ar["was_home_last"], ar["games_in4"], ar["games_in6"],
-                                 ar["prev_tip_hr"], ar["prev_late"], ar["recent_altitude"], yesterday)
+                                 ar["prev_tip_hr"], ar["prev_late"], ar["recent_altitude"],
+                                 yesterday, tonight_tip_local_hr)
 
         away_fat = round(away_f["score"], 1)
         home_fat = round(home_f["score"], 1)
-        max_fat  = max(away_fat, home_fat)
         diff     = round(away_fat - home_fat, 1)  # positive = away more fatigued = home edge
 
-        # Only log if a v2.0 betting signal fires
-        signals = get_betting_signals(away_f, home_f)
+        # Only log if a v2.1 betting signal fires
+        signals = get_betting_signals(away_f, home_f, away, home)
         if not signals:
             print(f"  Skip {away} @ {home}...")
             continue
@@ -547,19 +579,50 @@ def main():
         signal_types = [s["type"] for s in signals]
         has_spread = "spread" in signal_types
         has_under  = "under"  in signal_types
+        has_flip   = "spread-flip" in signal_types
 
-        # Gate spread signal: home must be favored (close_spread < 0)
+        # Get closing lines for gate checks
         outcomes_pre = compute_outcomes(event)
         close_spread_pre = outcomes_pre["close_spread"]
-        if has_spread and (close_spread_pre is None or close_spread_pre >= 0):
-            has_spread = False
-            print(f"  Spread signal voided for {away} @ {home}: home not favored (spread={close_spread_pre})")
+        close_total_pre  = outcomes_pre["close_total"]
 
-        if not has_spread and not has_under:
-            print(f"  Skip {away} @ {home}: no valid signals after spread gate")
+        # Gate SPREAD: home must be favored, spread -1 to -9.5
+        if has_spread and close_spread_pre is not None:
+            if close_spread_pre > -1 or close_spread_pre < -9.5:
+                has_spread = False
+                print(f"  Spread voided for {away} @ {home}: spread={close_spread_pre} outside -1 to -9.5")
+        elif has_spread and close_spread_pre is None:
+            has_spread = False
+            print(f"  Spread voided for {away} @ {home}: no closing spread")
+
+        # Gate SPREAD-FLIP: home spread must be -1 to -6.5
+        if has_flip and close_spread_pre is not None:
+            if close_spread_pre > -1 or close_spread_pre < -6.5:
+                has_flip = False
+                print(f"  Flip voided for {away} @ {home}: spread={close_spread_pre} outside -1 to -6.5")
+        elif has_flip and close_spread_pre is None:
+            has_flip = False
+            print(f"  Flip voided for {away} @ {home}: no closing spread")
+
+        # Gate UNDER: total must be < 234
+        under_confidence = None
+        if has_under:
+            under_sig = next(s for s in signals if s["type"] == "under")
+            under_confidence = under_sig["confidence"]
+            if close_total_pre is not None and close_total_pre >= 234:
+                has_under = False
+                print(f"  Under voided for {away} @ {home}: total={close_total_pre} >= 234")
+
+        if not has_spread and not has_under and not has_flip:
+            print(f"  Skip {away} @ {home}: no valid signals after gates")
             continue
 
-        signal_type = "both" if (has_spread and has_under) else ("spread" if has_spread else "under")
+        # Build signal_type string
+        active = []
+        if has_spread: active.append("spread")
+        if has_flip: active.append("spread-flip")
+        if has_under: active.append("under")
+        signal_type = "+".join(active)
 
         # Edge direction (kept for display/legacy)
         if diff > 0:
@@ -601,6 +664,12 @@ def main():
             edge_ats = "WIN" if ats_result == "away" else (
                 "PUSH" if ats_result == "push" else "LOSS")
 
+        # Spread-flip bet result: also bet on AWAY team (away covers despite fatigue)
+        flip_ats = None
+        if has_flip and ats_result:
+            flip_ats = "WIN" if ats_result == "away" else (
+                "PUSH" if ats_result == "push" else "LOSS")
+
         # Under bet result
         under_result = None
         if has_under and ou_result:
@@ -629,16 +698,18 @@ def main():
             "flagged_team":  flagged_team,
             "both_tired":    both_tired,
             "signal_type":   signal_type,
+            "under_confidence": under_confidence,
             "close_spread":  close_spread,
             "close_total":   close_total,
             "ats_result":    ats_result,
             "ou_result":     ou_result,
             "edge_ats":      edge_ats,
+            "flip_ats":      flip_ats,
             "under_result":  under_result,
         }
 
         new_games.append(rec)
-        print(f"  LOGGED: {away} @ {home} | signal={signal_type} | away={away_fat} home={home_fat} | ATS={edge_ats} OU={under_result}")
+        print(f"  LOGGED: {away} @ {home} | signal={signal_type} | away={away_fat} home={home_fat} | ATS={edge_ats} FLIP={flip_ats} OU={under_result}")
 
     if new_games:
         existing["games"].extend(new_games)

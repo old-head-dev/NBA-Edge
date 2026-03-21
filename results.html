@@ -143,8 +143,9 @@ footer{margin-top:40px;padding:20px 32px;border-top:1px solid var(--border);
   <!-- FILTERS -->
   <div class="filter-row">
     <button class="filter-btn active" onclick="setFilter('all',this)">ALL</button>
-    <button class="filter-btn" onclick="setFilter('spread',this)">SPREAD BETS</button>
-    <button class="filter-btn" onclick="setFilter('under',this)">UNDER BETS</button>
+    <button class="filter-btn" onclick="setFilter('spread',this)">SPREAD</button>
+    <button class="filter-btn" onclick="setFilter('flip',this)">FLIP</button>
+    <button class="filter-btn" onclick="setFilter('under',this)">UNDER</button>
     <span class="filter-sep">|</span>
     <button class="filter-btn active" id="btn-win"  onclick="toggleResult('win',this)">WINS</button>
     <button class="filter-btn active" id="btn-loss" onclick="toggleResult('loss',this)">LOSSES</button>
@@ -215,35 +216,60 @@ function scoreColor(s) {
   return 'var(--green)';
 }
 
-function badgeHtml(result) {
+function badgeHtml(result, prefix='') {
   if(!result) return '<span class="badge-na">—</span>';
   const r = result.toUpperCase();
   const cls = r==='WIN'?'win':r==='LOSS'?'loss':'push';
-  return `<span class="badge badge-${cls}">${r}</span>`;
+  const label = prefix ? `${prefix}:${r}` : r;
+  return `<span class="badge badge-${cls}">${label}</span>`;
 }
 
-// Derive signal type — handles both v2.0 records (have signal_type field)
-// and legacy v1.x records (derive from edge/both_tired fields).
+// Derive signal type — handles v2.1 records (compound signal_type like "spread+under"),
+// v2.0 records (simple signal_type), and legacy v1.x records (derive from fields).
 function getSignalType(g) {
   if(g.signal_type) return g.signal_type;
   if(g.both_tired && g.edge === 'AWAY') return 'both';
   if(g.both_tired) return 'under';
   if(g.edge === 'AWAY') return 'spread';
-  return 'other'; // legacy HOME EDGE records — no v2.0 signal
+  return 'other'; // legacy HOME EDGE records
+}
+
+function hasSignal(g, type) {
+  const st = getSignalType(g);
+  if(type === 'spread') return st === 'spread' || st.includes('spread') && !st.includes('flip');
+  if(type === 'under') return st === 'under' || st.includes('under');
+  if(type === 'spread-flip') return st === 'spread-flip' || st.includes('spread-flip');
+  return st === type;
 }
 
 function signalPill(g) {
   const st = getSignalType(g);
-  if(st === 'both')   return '<span class="edge-pill" style="background:rgba(255,16,96,0.1);color:var(--critical);border:1px solid rgba(255,16,96,0.3)">SPREAD+UNDER</span>';
-  if(st === 'spread') return '<span class="edge-pill" style="background:rgba(48,208,128,0.12);color:var(--green);border:1px solid rgba(48,208,128,0.3)">SPREAD</span>';
-  if(st === 'under')  return '<span class="edge-pill" style="background:rgba(200,100,255,0.1);color:#c864ff;border:1px solid rgba(200,100,255,0.3)">UNDER</span>';
-  return '<span class="edge-pill edge-even">LEGACY</span>';
+  const pills = [];
+  if(st.includes('spread') && !st.includes('flip'))
+    pills.push('<span class="edge-pill" style="background:rgba(48,208,128,0.12);color:var(--green);border:1px solid rgba(48,208,128,0.3)">SPREAD</span>');
+  if(st.includes('spread-flip'))
+    pills.push('<span class="edge-pill" style="background:rgba(160,100,255,0.12);color:#a064ff;border:1px solid rgba(160,100,255,0.3)">FLIP</span>');
+  if(st.includes('under')){
+    const conf = g.under_confidence || '';
+    pills.push(`<span class="edge-pill" style="background:rgba(200,100,255,0.1);color:#c864ff;border:1px solid rgba(200,100,255,0.3)">UNDER ${conf}</span>`);
+  }
+  if(st === 'both')
+    return '<span class="edge-pill" style="background:rgba(255,16,96,0.1);color:var(--critical);border:1px solid rgba(255,16,96,0.3)">SPREAD+UNDER</span>';
+  if(!pills.length)
+    return '<span class="edge-pill edge-even">LEGACY</span>';
+  return pills.join(' ');
 }
 
 function getResultKey(game) {
   const st = getSignalType(game);
   if(st === 'under' || (st === 'both' && !game.edge_ats)){
     const r = game.under_result;
+    if(!r) return 'na';
+    return r.toLowerCase();
+  }
+  // Flip-only games: use flip_ats instead of edge_ats
+  if(st.includes('spread-flip') && !game.edge_ats){
+    const r = game.flip_ats;
     if(!r) return 'na';
     return r.toLowerCase();
   }
@@ -254,9 +280,9 @@ function getResultKey(game) {
 
 function applyFilters(games) {
   return games.filter(g => {
-    const st = getSignalType(g);
-    if(filterMode === 'spread' && st !== 'spread' && st !== 'both') return false;
-    if(filterMode === 'under'  && st !== 'under'  && st !== 'both') return false;
+    if(filterMode === 'spread' && !hasSignal(g, 'spread')) return false;
+    if(filterMode === 'under'  && !hasSignal(g, 'under')) return false;
+    if(filterMode === 'flip'   && !hasSignal(g, 'spread-flip')) return false;
     const rKey = getResultKey(g);
     if(!resultShow.has(rKey)) return false;
     return true;
@@ -275,24 +301,29 @@ function render() {
 
   // Summary stats
   const total = ALL_GAMES.length;
-  const spreadGames = ALL_GAMES.filter(g => { const st=getSignalType(g); return st==='spread'||st==='both'; });
-  const underGames  = ALL_GAMES.filter(g => { const st=getSignalType(g); return st==='under' ||st==='both'; });
+  const spreadGames = ALL_GAMES.filter(g => hasSignal(g, 'spread'));
+  const flipGames   = ALL_GAMES.filter(g => hasSignal(g, 'spread-flip'));
+  const underGames  = ALL_GAMES.filter(g => hasSignal(g, 'under'));
 
   const wins   = spreadGames.filter(g => g.edge_ats === 'WIN').length;
   const losses = spreadGames.filter(g => g.edge_ats === 'LOSS').length;
   const pushes = spreadGames.filter(g => g.edge_ats === 'PUSH').length;
   const noLine = ALL_GAMES.filter(g => g.close_spread === null || g.close_spread === undefined).length;
 
+  const flipWins  = flipGames.filter(g => g.flip_ats === 'WIN').length;
+  const flipLoss  = flipGames.filter(g => g.flip_ats === 'LOSS').length;
+
   const underWins  = underGames.filter(g => g.under_result === 'WIN').length;
   const underLoss  = underGames.filter(g => g.under_result === 'LOSS').length;
 
   const edgePct  = (wins+losses) > 0 ? Math.round(wins/(wins+losses)*100) : null;
+  const flipPct  = (flipWins+flipLoss) > 0 ? Math.round(flipWins/(flipWins+flipLoss)*100) : null;
   const underPct = (underWins+underLoss) > 0 ? Math.round(underWins/(underWins+underLoss)*100) : null;
 
-  const combinedWins   = ALL_GAMES.filter(g => g.edge_ats === 'WIN' || g.under_result === 'WIN').length;
-  const combinedLosses = ALL_GAMES.filter(g => g.edge_ats === 'LOSS' || g.under_result === 'LOSS').length;
-  const combinedPct = (combinedWins+combinedLosses) > 0 ? Math.round(combinedWins/(combinedWins+combinedLosses)*100) : null;
-  
+  const allWins   = wins + flipWins + underWins;
+  const allLosses = losses + flipLoss + underLoss;
+  const combinedPct = (allWins+allLosses) > 0 ? Math.round(allWins/(allWins+allLosses)*100) : null;
+
   document.getElementById('s-total').textContent    = total;
   document.getElementById('s-edge-wl').textContent  = (wins+losses) ? `${wins}-${losses}` : '—';
   document.getElementById('s-edge-pct').textContent = edgePct !== null ? `${edgePct}% win rate` : 'Awaiting data';
@@ -300,8 +331,8 @@ function render() {
   document.getElementById('s-losses').textContent   = losses;
   document.getElementById('s-under-wl').textContent = (underWins+underLoss) ? `${underWins}-${underLoss}` : '—';
   document.getElementById('s-under-pct').textContent= underPct !== null ? `${underPct}% win rate` : 'Awaiting data';
-  document.getElementById('s-no-line').textContent  = noLine;
-  document.getElementById('s-combined-wl').textContent = (combinedWins+combinedLosses) ? `${combinedWins}-${combinedLosses}` : '—';
+  document.getElementById('s-no-line').textContent  = flipGames.length ? `${flipWins}-${flipLoss} FLIP` : noLine;
+  document.getElementById('s-combined-wl').textContent = (allWins+allLosses) ? `${allWins}-${allLosses}` : '—';
   document.getElementById('s-combined-pct').textContent = combinedPct !== null ? `${combinedPct}% win rate` : 'Awaiting data';
 
   // ROI bars
@@ -352,7 +383,7 @@ function render() {
       <td class="td-line">${totalDisplay}</td>
       <td class="td-mono">${g.ats_result ? g.ats_result.toUpperCase() : '—'}</td>
       <td class="td-mono">${g.ou_result  ? g.ou_result.toUpperCase()  : '—'}</td>
-      <td>${badgeHtml(g.edge_ats)}</td>
+      <td>${badgeHtml(g.edge_ats)}${g.flip_ats ? ' '+badgeHtml(g.flip_ats, 'F') : ''}</td>
       <td>${g.under_result ? badgeHtml(g.under_result) : '<span class="badge-na">—</span>'}</td>
     </tr>`;
   }).join('');
@@ -373,7 +404,7 @@ function sortBy(key) {
 function setFilter(mode, btn) {
   filterMode = mode;
   document.querySelectorAll('.filter-btn').forEach(b => {
-    if(['all','spread','under'].some(x => b.getAttribute('onclick')?.includes(`'${x}'`)))
+    if(['all','spread','flip','under'].some(x => b.getAttribute('onclick')?.includes(`'${x}'`)))
       b.classList.remove('active');
   });
   btn.classList.add('active');

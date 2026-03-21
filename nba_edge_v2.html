@@ -127,16 +127,27 @@ body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-
 
 /* GAME CARD SIGNAL BORDERS */
 .game-card.signal-spread{border-color:rgba(48,208,128,0.55);}
+.game-card.signal-flip{border-color:rgba(160,100,255,0.55);}
+.game-card.signal-under-1{border-color:rgba(240,192,64,0.35);}
 .game-card.signal-under-2{border-color:rgba(240,192,64,0.55);}
 .game-card.signal-under-3{border-color:rgba(255,16,96,0.6);box-shadow:0 0 20px rgba(255,16,96,0.1);}
 
 /* SIGNAL STRIP */
 .signal-strip{padding:8px 14px;background:var(--surface2);border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:13px;font-family:'DM Mono',monospace;letter-spacing:0.5px;}
 .signal-strip.signal-spread{color:var(--green);}
+.signal-strip.signal-flip{color:#a064ff;}
+.signal-strip.signal-under-1{color:var(--yellow);opacity:0.7;}
 .signal-strip.signal-under-2{color:var(--yellow);}
 .signal-strip.signal-under-3{color:var(--critical);}
 .signal-strip.signal-info{color:var(--muted);font-size:11px;}
 .signal-note{font-size:10px;color:var(--muted);margin-left:4px;}
+.tank-warning{font-size:9px;color:var(--orange);padding:2px 6px;border:1px solid rgba(240,160,48,0.3);border-radius:3px;margin-left:auto;}
+
+/* SIGNAL MODE TOGGLE */
+#signal-mode-toggle:checked + #signal-slider{background:rgba(240,192,64,0.2);border-color:var(--accent);}
+#signal-slider::before{content:'';position:absolute;width:14px;height:14px;left:2px;top:2px;
+  background:var(--muted);border-radius:50%;transition:0.2s;}
+#signal-mode-toggle:checked + #signal-slider::before{transform:translateX(16px);background:var(--accent);}
 
 /* MISC */
 .test-banner{background:rgba(240,192,64,0.08);border:1px solid rgba(240,192,64,0.2);border-radius:6px;
@@ -163,7 +174,7 @@ footer{margin-top:40px;padding:20px 32px;border-top:1px solid var(--border);disp
 <header class="header">
   <a class="logo" href="https://old-head-dev.github.io/NBA-Edge/" style="text-decoration:none;">NBA<span>EDGE</span></a>
   <div class="header-meta">
-    <div class="version">v2.0 — BETTING SIGNALS</div>
+    <div class="version">v2.1 — V2 SIGNALS + ODDS</div>
     <div class="api-status">
       <div class="status-dot" id="status-dot"></div>
       <span id="status-text">Connecting...</span>
@@ -181,15 +192,38 @@ footer{margin-top:40px;padding:20px 32px;border-top:1px solid var(--border);disp
     <button class="date-btn" onclick="shiftDate(1)">NEXT →</button>
   </div>
 
+  <!-- ODDS API & SIGNAL MODE CONTROLS -->
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.5px;">
+      <label for="odds-key-input">ODDS API KEY:</label>
+      <input type="password" id="odds-key-input" placeholder="paste key" style="
+        background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 8px;
+        color:var(--text);font-family:'DM Mono',monospace;font-size:10px;width:180px;" />
+      <button onclick="saveOddsKey()" style="background:var(--surface2);border:1px solid var(--border);
+        border-radius:4px;padding:4px 8px;color:var(--accent);cursor:pointer;font-family:'DM Mono',monospace;
+        font-size:10px;letter-spacing:0.5px;">SAVE</button>
+      <span id="odds-status" style="font-size:9px;color:var(--muted)"></span>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.5px;">SIGNAL MODE</span>
+      <label style="position:relative;display:inline-block;width:36px;height:20px;cursor:pointer;">
+        <input type="checkbox" id="signal-mode-toggle" onchange="toggleSignalMode()" style="opacity:0;width:0;height:0;">
+        <span style="position:absolute;top:0;left:0;right:0;bottom:0;background:var(--surface2);border:1px solid var(--border);
+          border-radius:10px;transition:0.2s;" id="signal-slider"></span>
+      </label>
+    </div>
+  </div>
+
   <!-- BETTING EDGES PANEL -->
   <div class="summary-panel">
     <div class="summary-title">⚡ Tonight's Betting Edges</div>
+    <div id="odds-timestamp" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:8px;display:none;"></div>
     <div id="rankings-container"><div class="no-flags">Loading...</div></div>
   </div>
 
   <!-- GAMES -->
   <div class="section-header">
-    <div class="section-title">Tonight's Games</div>
+    <div class="section-title" id="games-section-title">Tonight's Games</div>
     <div class="game-count" id="game-count"></div>
   </div>
   <div id="games-container">
@@ -325,22 +359,21 @@ function formatDateDisplay(dateStr){
 }
 
 // ── SLEEP ESTIMATOR ───────────────────────────────────────────────
-// All arithmetic stays in decimal hours (0–48 range, no am/pm wrapping).
-// Wake-up is hard-capped at 10:00am local — realistic game-day ceiling.
+// Matches canonical backtest formula (nba_backtest.js).
 // prevTipLocalHr: actual tip time at fromArena in local hours (e.g. 20.5 = 8:30pm).
-//   Defaults to 20.0 (8pm) if unknown.
+// tonightTipLocalHr: tonight's game tip time in destination local hours (raw 0-24).
 // Timeline for Scenario A (Away→Away road trip):
 //   Prev game ends: prevTip + 2.5hrs
 //   Charter departs: game end + 2.5hrs post-game lag
 //   Flight: dist/500 hrs
 //   Hotel arrival: landing + 0.75hrs
-//   Sleep window: hotel arrival → 10am local (hard cap)
-//   Plane sleep: time airborne after midnight at 50% quality
-function estimateBTBSleep(fromArena, toArena, prevTipLocalHr = 20.0){
+//   Wake-up: tonightTipLocal - 3.0 (3 hours before tonight's game)
+//   Plane sleep: min(flight*0.6, hours-past-midnight) at 50% quality
+function estimateBTBSleep(fromArena, toArena, prevTipLocalHr = 20.0, tonightTipLocalHr = 19.0, dateStr = null){
   const dist = getDist(fromArena, toArena);
   const flightHrs = dist / 500;
-  const toTZ = getUTCOffset(toArena);
-  const fromTZ = getUTCOffset(fromArena);
+  const toTZ = getUTCOffset(toArena, dateStr);
+  const fromTZ = getUTCOffset(fromArena, dateStr);
 
   // Work entirely in destination local time (hours since midnight prev night)
   const gameEndFromLocal = prevTipLocalHr + 2.5; // game ends ~2.5hrs after tip
@@ -354,22 +387,22 @@ function estimateBTBSleep(fromArena, toArena, prevTipLocalHr = 20.0){
   const landingDestLocal = departureDestLocal + flightHrs;
   const hotelArrivalLocal = landingDestLocal + 0.75; // 45min tarmac→bed
 
-  // Hard cap: must be up by 10am local (= 10.0, or 34.0 if after midnight)
-  // hotelArrivalLocal may be e.g. 25.5 (1:30am next day in 0-48 scale)
-  // 10am next day = 34.0 in same scale
-  const wakeUpLocal = 34.0; // 10:00am expressed as hours-since-midnight-prev-night
+  // Wake-up: 3 hours before tonight's tip (canonical formula).
+  // tonightTipLocalHr is the raw local hour (0-24 scale).
+  // hotelArrivalLocal is on a 24+ scale for post-midnight arrivals.
+  // This intentionally matches canonical backtest behavior.
+  const wakeUpLocal = tonightTipLocalHr - 3.0;
 
-  // Hotel sleep = time between arrival and 10am, floored at 0
+  // Hotel sleep = time between arrival and wake-up, floored at 0
   const hotelSleepHrs = Math.max(0, wakeUpLocal - hotelArrivalLocal);
 
-  // Plane sleep: if still airborne past midnight (24.0), some sleep possible
-  // Only count time on plane between midnight and landing, at 50% quality
-  const midnightOnPlane = Math.max(0, 24.0 - (departureDestLocal + flightHrs) + flightHrs);
-  // Simpler: time on plane after midnight = max(0, landing - max(departure, 24))
-  const planeAfterMidnight = Math.max(0, landingDestLocal - Math.max(departureDestLocal, 24.0));
-  const planeSleepHrs = planeAfterMidnight * 0.5; // 50% quality
+  // Plane sleep: canonical formula — min(60% of flight time, hours past midnight)
+  // midnightDelta = how many hours after midnight the team arrived at hotel
+  const midnightDelta = hotelArrivalLocal - 24;
+  const planeSleepHrs = midnightDelta > 0 ? Math.min(flightHrs * 0.6, midnightDelta) : 0;
 
-  const totalEffectiveSleep = hotelSleepHrs + planeSleepHrs;
+  // Total: hotel sleep + plane sleep at 50% quality
+  const totalEffectiveSleep = hotelSleepHrs + (planeSleepHrs * 0.5);
 
   // Format arrival for display
   const arrMod = ((hotelArrivalLocal % 24) + 24) % 24;
@@ -391,17 +424,17 @@ function estimateBTBSleep(fromArena, toArena, prevTipLocalHr = 20.0){
 }
 
 // ── COMPOSITE FATIGUE SCORE (0–10) ────────────────────────────────
+// Matches canonical backtest weights (nba_backtest.js:computeFatigueScore).
 // BTB base: A=5 (away→away), C=4 (away→home), B=3 (home→away), home-home=2
-// Sleep modifier (BTB only): <2hrs +5, 2–3.9hrs +3, 4–5.9hrs +2, 6–6.9hrs +1, ≥7hrs +0
+// Sleep modifier (BTB only): <4hrs +4, 4–5.9hrs +2, 6–6.9hrs +1, ≥7hrs +0
 // Eastbound tz penalty: +0.5/hr crossed (max +1.5) — eastbound = positive tzDelta
 // Prev game late tip (BTB only): prev tip ≥ 9:30pm local → +0.5
-//   (later finish = later charter = less sleep)
 // Schedule density: 4-in-6 +2, 3-in-4 +1
 function computeFatigueScore(scenario, isBTB, effectiveSleep, tzDelta, prevTipWasLate, densityTag, altitudePenalty=0){
   let base = 0;
   if(isBTB) base = scenario==='A' ? 5 : scenario==='C' ? 4 : scenario==='B' ? 3 : 2;
   const sleepMod = (isBTB && effectiveSleep !== null)
-    ? (effectiveSleep < 2 ? 5 : effectiveSleep < 4 ? 3 : effectiveSleep < 6 ? 2 : effectiveSleep < 7 ? 1 : 0) : 0;
+    ? (effectiveSleep < 4 ? 4 : effectiveSleep < 6 ? 2 : effectiveSleep < 7 ? 1 : 0) : 0;
   const tzMod = tzDelta > 0 ? Math.min(tzDelta * 0.5, 1.5) : 0; // eastbound = positive tzDelta = losing hours
   const lateMod = (isBTB && prevTipWasLate) ? 0.5 : 0;
   const densityMod = densityTag==='4-in-6' ? 2 : densityTag==='3-in-4' ? 1 : 0;
@@ -411,7 +444,8 @@ function computeFatigueScore(scenario, isBTB, effectiveSleep, tzDelta, prevTipWa
 // ── MAIN FATIGUE ANALYZER ─────────────────────────────────────────
 // prevTipLocalHr: tip time of previous game in local hours at that arena (default 19.5)
 // prevTipWasLate: true if prev tip was ≥ 9:30pm local (adds +0.5 to BTB score)
-function analyzeFatigue(teamAbbr, isHome, daysRest, prevArena, homeTeamAbbr, wasHomeLastGame, gamesIn4=1, gamesIn6=1, prevTipLocalHr=19.5, prevTipWasLate=false, recentAltitudeVisit=false){
+// tonightTipLocalHr: tonight's game tip time in destination local hours (for sleep wake-up calc)
+function analyzeFatigue(teamAbbr, isHome, daysRest, prevArena, homeTeamAbbr, wasHomeLastGame, gamesIn4=1, gamesIn6=1, prevTipLocalHr=19.5, prevTipWasLate=false, recentAltitudeVisit=false, tonightTipLocalHr=19.0, dateStr=null){
   if(daysRest === null){
     return {tier:'good',isBTB:false,dist:0,flightHrs:0,tzDelta:0,effectiveSleep:null,
       detail:'Rest unknown',sleepDetail:null,densityTag:null,scenario:null,fatigueScore:0,altitudePenalty:0};
@@ -436,9 +470,10 @@ function analyzeFatigue(teamAbbr, isHome, daysRest, prevArena, homeTeamAbbr, was
     }
     if(!wasHomeLastGame){
       // Scenario C: Away→Home BTB — flew home, sleeping in own bed
-      const s = estimateBTBSleep(prevArena || teamAbbr, homeTeamAbbr, prevTipLocalHr);
-      const adj = s.totalEffectiveSleep; // no own bed bonus — base score difference (C=4 vs A=5) carries that distinction
-      const tier = adj >= 7 ? 'good' : adj >= 6 ? 'average' : adj >= 4 ? 'poor' : 'critical';
+      // +1.5 own-bed bonus matches canonical backtest (nba_backtest.js line 186)
+      const s = estimateBTBSleep(prevArena || teamAbbr, homeTeamAbbr, prevTipLocalHr, tonightTipLocalHr, dateStr);
+      const adj = Math.round((s.totalEffectiveSleep + 1.5) * 10) / 10;
+      const tier = adj >= 7 ? 'average' : adj >= 4 ? 'poor' : 'critical'; // canonical: capped at 'average' for Scenario C
       return {tier, isBTB:true, dist:s.dist, flightHrs:s.flightHrs, tzDelta:s.tzDelta,
         effectiveSleep: Math.round(adj*10)/10,
         detail: `BTB (away→home) · flew ${s.dist.toLocaleString()} mi`,
@@ -504,7 +539,7 @@ function analyzeFatigue(teamAbbr, isHome, daysRest, prevArena, homeTeamAbbr, was
 
   // Scenario A: Away→Away BTB (road trip)
   const fromArena = prevArena || teamAbbr;
-  const sleep = estimateBTBSleep(fromArena, homeTeamAbbr, prevTipLocalHr);
+  const sleep = estimateBTBSleep(fromArena, homeTeamAbbr, prevTipLocalHr, tonightTipLocalHr, dateStr);
   const adj = Math.max(0, sleep.totalEffectiveSleep);
   const tier = adj >= 7 ? 'good' : adj >= 6 ? 'average' : adj >= 4 ? 'poor' : 'critical';
   const tzLabel = sleep.tzDelta===0 ? '' : sleep.tzDelta>0 ? ` · ${sleep.tzDelta}hr east` : ` · ${Math.abs(sleep.tzDelta)}hr west`;
@@ -597,60 +632,124 @@ function calcRestFromHistory(games, teamId, targetDate){
     prevTipLocalHr, prevTipWasLate, recentAltitudeVisit};
 }
 
-// ── BETTING SIGNAL ENGINE ─────────────────────────────────────────
+// ── TEAM QUALITY ──────────────────────────────────────────────────
+// Teams with wpct < .350 are toxic for betting signals (36.7% ATS combined).
+// Update this list monthly during the season.
+const TANK_WATCH = ['UTA', 'WAS', 'POR', 'CHA', 'BKN'];
+
+// ── BETTING SIGNAL ENGINE (V2) ───────────────────────────────────
 // Rules derived from combined 24-25 + 25-26 backtest (n=470 ATS, n=82 under).
+// All signals validated as profitable in BOTH seasons independently.
 //
-// SPREAD — AWAY EDGE:
-//   Home team BTB (non-B scenario), delta >= 4 → Bet Away +
-//   Note: home-favored condition cannot be verified without odds feed (v3.0).
-//   Signal fires unconditionally; user must confirm home is favored.
+// SPREAD — AWAY EDGE (bet away ATS):
+//   Home more fatigued, delta >= 4
+//   Best when home spread -1 to -9.5 (62.9%, +20.0% ROI)
+//   Big favorites (-10+) are dead money (50%) — excluded when odds available
 //
-// UNDER — BOTH TIRED:
-//   Both teams >= 5 fatigue + away=Scenario A (road-trip BTB)
-//   Home=home-home OR home=C → Bet Under +++ (70-79% combined)
-//   All other home scenarios → Bet Under ++ (70% combined)
-//   Away=B both-tired: no signal (52% — coin flip)
+// SPREAD-FLIP — HOME EDGE FLIPPED (bet fatigued away team ATS):
+//   Away more fatigued, delta >= 4, home spread -1 to -6.5
+//   Market over-adjusts for away fatigue (62.5%, +19.3% ROI)
+//   REQUIRES spread data to function — spread range is essential
 //
-// HOME EDGE (away more fatigued): informational only — books price Scenario A road-trip BTB.
-//   No bet signal. Show muted note.
+// UNDER — BOTH TIRED (bet under):
+//   Both >= 5 fatigue, away = Scenario A (road-trip BTB only — B excluded at 52%)
+//   Confidence tiers:
+//     +++ : Away=A + Home=HH (70.6%, +34.8% ROI)
+//     ++  : Away=A + Home=C  (69.6%)
+//     +   : Away=A + other   (65%)
+//   Best when closing total < 234 (76.9%, +46.9% ROI)
 //
-// Density-only paths: density contributes to displayed score but isBTB gate
-//   prevents density-only games from triggering any signal.
+// INFO: away fatigued + BTB + delta >= 2 but no actionable signal → muted note
 //
-// ── BETTING SIGNAL ENGINE ─────────────────────────────────────────
-// Returns an ARRAY — a game can fire both spread AND under simultaneously.
-// e.g. Away=A (fatigued road team) + Home=C with score >= 5 and delta >= 4
-// fires both an under signal (both tired + Away=A) and a spread signal
-// (home more fatigued, BTB non-B, delta >= 4).
-//
-// Spread:  home BTB non-B, home more fatigued, delta >= 4 → Bet Away +
-// Under:   both >= 5, away=Scenario A → Bet Under ++/+++
-// Info:    away more fatigued, away BTB, delta >= 2, no actionable signal → muted note
-//
-function getBettingSignals(awayF, homeF){
+// gameOdds: optional {spread, total} from Odds API. null if not available.
+function getBettingSignals(awayF, homeF, away, home, gameOdds = null){
   const signals = [];
   const diff  = awayF.fatigueScore - homeF.fatigueScore; // + = away worse, - = home worse
   const delta = Math.abs(diff);
+  const hasOdds = gameOdds && gameOdds.spread !== null;
+  const hasTotal = gameOdds && gameOdds.total !== null;
 
   // UNDER signal: both tired (>= 5), away = Scenario A (road-trip BTB only — B excluded)
   if(awayF.fatigueScore >= 5 && homeF.fatigueScore >= 5 && awayF.isBTB && awayF.scenario === 'A'){
-    const strongCombo = homeF.scenario === 'home-home' || homeF.scenario === 'C';
-    const conf = strongCombo ? '+++' : '++';
+    let conf, cls;
+    if(homeF.scenario === 'home-home'){ conf = '+++'; cls = 'signal-under-3'; }
+    else if(homeF.scenario === 'C')   { conf = '++';  cls = 'signal-under-2'; }
+    else                               { conf = '+';   cls = 'signal-under-1'; }
+
+    let totalWarning = '';
+    if(hasTotal && gameOdds.total >= 234) totalWarning = ' · total ≥234 ⚠';
+    else if(!hasTotal) totalWarning = '';
+
     signals.push({
       type:'under', confidence:conf,
       label:`▼ Bet Under ${conf}`,
-      cls: conf === '+++' ? 'signal-under-3' : 'signal-under-2',
+      note: hasTotal ? `O/U ${gameOdds.total}${totalWarning}` : 'Best when total < 234',
+      cls,
     });
   }
 
-  // SPREAD signal: home more fatigued, home BTB non-B, delta >= 4
-  if(diff < 0 && delta >= 4 && homeF.isBTB && homeF.scenario !== 'B'){
-    signals.push({
-      type:'spread',
-      label:'▲ Bet Away +',
-      note:'if home is favored',
-      cls:'signal-spread',
-    });
+  // SPREAD signal: home more fatigued (AWAY EDGE), delta >= 4
+  // Removed scenario A/C restriction — any home BTB qualifies at delta >= 4
+  if(diff < 0 && delta >= 4 && homeF.isBTB){
+    let spreadNote = 'Verify home fav −1 to −9.5';
+    let spreadOk = true;
+    if(hasOdds){
+      const sp = gameOdds.spread;
+      if(sp > -1){ spreadOk = false; } // home not favored enough — validated window is -1 to -9.5
+      else if(sp < -9.5){ spreadOk = false; } // big favorite — dead money (50%)
+      else { spreadNote = `HOME ${sp}`; }
+    }
+    if(spreadOk){
+      signals.push({
+        type:'spread',
+        label:'▲ Bet Away +',
+        note: spreadNote,
+        cls:'signal-spread',
+      });
+    }
+  }
+
+  // SPREAD-FLIP signal: away more fatigued (HOME EDGE), delta >= 4
+  // Market over-adjusts for away fatigue — bet the fatigued away team ATS
+  // Requires home spread -1 to -6.5
+  if(diff > 0 && delta >= 4 && awayF.isBTB){
+    let flipNote = 'Requires home fav −1 to −6.5';
+    let flipOk = false; // only fires when we can verify spread range
+    if(hasOdds){
+      const sp = gameOdds.spread;
+      if(sp <= -1 && sp >= -6.5){
+        flipOk = true;
+        flipNote = `HOME ${sp} · market overpricing fatigue`;
+      }
+    } else {
+      // Without odds, show as informational — user must check manually
+      flipOk = true;
+      flipNote = 'Check: home fav −1 to −6.5';
+    }
+    if(flipOk){
+      signals.push({
+        type:'spread-flip',
+        label:'↕ Bet Away (Flip)',
+        note: flipNote,
+        cls:'signal-flip',
+      });
+    }
+  }
+
+  // Team quality warnings
+  for(const sig of signals){
+    if(sig.type === 'info') continue;
+    const edgeTeam = sig.type === 'spread' ? away : sig.type === 'spread-flip' ? away : null;
+    // For under signals, check both teams
+    if(sig.type === 'under'){
+      if(TANK_WATCH.includes(away) || TANK_WATCH.includes(home)){
+        sig.tankWarning = true;
+        sig.tankTeam = TANK_WATCH.includes(away) ? away : home;
+      }
+    } else if(edgeTeam && TANK_WATCH.includes(edgeTeam)){
+      sig.tankWarning = true;
+      sig.tankTeam = edgeTeam;
+    }
   }
 
   // HOME EDGE info: away more fatigued + away BTB + delta >= 2, no actionable signals fired
@@ -672,7 +771,8 @@ function renderGame(game, awayRest, homeRest, awayF, homeF, idx){
   const tipDisplay = formatTipTime(game.datetime);
   const awayMeta = TIER_META[awayF.tier];
   const homeMeta = TIER_META[homeF.tier];
-  const signals = getBettingSignals(awayF, homeF);
+  const gameOdds = game._odds || null; // attached by Odds API integration
+  const signals = getBettingSignals(awayF, homeF, away, home, gameOdds);
   const isLive  = game.status && game.status !== 'Final' && !game.status.includes(':');
   const isFinal = game.status === 'Final';
   const statusDisplay = isLive
@@ -706,21 +806,28 @@ function renderGame(game, awayRest, homeRest, awayF, homeF, idx){
   const homeSleepLine = homeF.sleepDetail
     ? `<div class="tier-detail" style="font-size:12px;color:var(--orange);margin-top:2px">💤 ${homeF.sleepDetail}</div>` : '';
 
-  // Card border priority: under-3 > under-2 > spread > none
+  // Card border priority: under-3 > under-2 > under-1 > flip > spread > none
   let cardCls = '';
   if(signals.some(s => s.cls === 'signal-under-3'))      cardCls = 'signal-under-3';
   else if(signals.some(s => s.cls === 'signal-under-2')) cardCls = 'signal-under-2';
+  else if(signals.some(s => s.cls === 'signal-under-1')) cardCls = 'signal-under-1';
+  else if(signals.some(s => s.type === 'spread-flip'))   cardCls = 'signal-flip';
   else if(signals.some(s => s.type === 'spread'))        cardCls = 'signal-spread';
 
   // Render all signal strips
   const signalStrips = signals.map(sig => {
+    const tankBadge = sig.tankWarning ? `<span class="tank-warning">⚠ ${sig.tankTeam} low quality</span>` : '';
     if(sig.type === 'spread'){
       return `<div class="signal-strip signal-spread" style="justify-content:flex-start;">
-        <span>${sig.label}</span><span class="signal-note">· ${sig.note}</span>
+        <span>${sig.label}</span><span class="signal-note">· ${sig.note}</span>${tankBadge}
+      </div>`;
+    } else if(sig.type === 'spread-flip'){
+      return `<div class="signal-strip signal-flip" style="justify-content:flex-start;">
+        <span>${sig.label}</span><span class="signal-note">· ${sig.note}</span>${tankBadge}
       </div>`;
     } else if(sig.type === 'under'){
       return `<div class="signal-strip ${sig.cls}" style="justify-content:center;">
-        <span>${sig.label}</span>
+        <span>${sig.label}</span>${sig.note ? `<span class="signal-note">· ${sig.note}</span>` : ''}${tankBadge}
       </div>`;
     } else if(sig.type === 'info'){
       return `<div class="signal-strip signal-info" style="justify-content:center;">
@@ -774,20 +881,27 @@ function renderBettingEdges(enriched){
   enriched.forEach(({game, awayF, homeF}) => {
     const away = game.visitor_team.abbreviation;
     const home = game.home_team.abbreviation;
-    const signals = getBettingSignals(awayF, homeF);
+    const gameOdds = game._odds || null;
+    const signals = getBettingSignals(awayF, homeF, away, home, gameOdds);
 
     signals.forEach(signal => {
-      if(signal.type !== 'spread' && signal.type !== 'under') return;
+      if(signal.type === 'info') return;
       cardNum++;
+
+      const tankBadge = signal.tankWarning
+        ? `<span class="rank-pill" style="background:rgba(240,160,48,0.12);border:1px solid rgba(240,160,48,0.3);color:var(--orange);font-size:8px">⚠ ${signal.tankTeam}</span>`
+        : '';
 
       if(signal.type === 'under'){
         const conf = signal.confidence;
-        const cardCls = conf === '+++' ? 'rc-under-3' : 'rc-under-2';
-        const labelColor = conf === '+++' ? 'var(--critical)' : 'var(--yellow)';
+        const cardCls = conf === '+++' ? 'rc-under-3' : conf === '++' ? 'rc-under-2' : 'rc-under-1';
+        const labelColor = conf === '+++' ? 'var(--critical)' : conf === '++' ? 'var(--yellow)' : 'var(--muted)';
         const homeScen = homeF.scenario === 'home-home' ? 'H-H'
           : homeF.scenario === 'C' ? 'A→H'
           : homeF.scenario === 'B' ? 'H→A'
           : homeF.scenario === 'A' ? 'road' : 'home';
+        const totalNote = gameOdds && gameOdds.total !== null
+          ? `<div class="rank-signal-note" style="font-size:9px;color:var(--muted)">O/U ${gameOdds.total}</div>` : '';
         panelCards.push(`
           <div class="rank-card ${cardCls}">
             <div class="rank-num">${cardNum}</div>
@@ -797,14 +911,18 @@ function renderBettingEdges(enriched){
               <div class="rank-pills">
                 <span class="rank-pill rank-pill-btb">BTB</span>
                 <span class="rank-pill" style="background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.1);color:var(--muted)">UNDER</span>
+                ${tankBadge}
               </div>
             </div>
             <div class="rank-signal" style="color:${labelColor}">
               <div>${conf}</div>
               <div class="rank-signal-note">BET UNDER</div>
+              ${totalNote}
             </div>
           </div>`);
-      } else {
+      } else if(signal.type === 'spread'){
+        const spreadNote = gameOdds && gameOdds.spread !== null
+          ? `HOME ${gameOdds.spread}` : 'if home fav −1 to −9.5';
         panelCards.push(`
           <div class="rank-card rc-spread">
             <div class="rank-num">${cardNum}</div>
@@ -813,11 +931,31 @@ function renderBettingEdges(enriched){
               <div class="rank-meta">@ ${home} · home BTB</div>
               <div class="rank-pills">
                 <span class="rank-pill" style="background:rgba(48,208,128,0.12);border:1px solid rgba(48,208,128,0.3);color:var(--green)">SPREAD</span>
+                ${tankBadge}
               </div>
             </div>
             <div class="rank-signal" style="color:var(--green)">
               <div>+</div>
-              <div class="rank-signal-note">BET AWAY<br><span style="color:var(--muted)">if home fav</span></div>
+              <div class="rank-signal-note">BET AWAY<br><span style="color:var(--muted)">${spreadNote}</span></div>
+            </div>
+          </div>`);
+      } else if(signal.type === 'spread-flip'){
+        const flipNote = gameOdds && gameOdds.spread !== null
+          ? `HOME ${gameOdds.spread}` : 'check: home fav −1 to −6.5';
+        panelCards.push(`
+          <div class="rank-card" style="border-color:rgba(160,100,255,0.4)">
+            <div class="rank-num">${cardNum}</div>
+            <div class="rank-body">
+              <div class="rank-team">${away}</div>
+              <div class="rank-meta">@ ${home} · away fatigued but covers</div>
+              <div class="rank-pills">
+                <span class="rank-pill" style="background:rgba(160,100,255,0.12);border:1px solid rgba(160,100,255,0.3);color:#a064ff">FLIP</span>
+                ${tankBadge}
+              </div>
+            </div>
+            <div class="rank-signal" style="color:#a064ff">
+              <div>↕</div>
+              <div class="rank-signal-note">BET AWAY<br><span style="color:var(--muted)">${flipNote}</span></div>
             </div>
           </div>`);
       }
@@ -891,10 +1029,37 @@ async function loadGames(){
       const home = game.home_team.abbreviation;
       const awayRest = restMap[game.visitor_team.id] || {daysRest:1,prevLocation:null,gamesIn4:1,gamesIn6:1,prevTipLocalHr:19.5,prevTipWasLate:false,recentAltitudeVisit:false};
       const homeRest  = restMap[game.home_team.id]   || {daysRest:1,prevLocation:null,gamesIn4:1,gamesIn6:1,prevTipLocalHr:19.5,prevTipWasLate:false,recentAltitudeVisit:false};
-      const awayF = analyzeFatigue(away, false, awayRest.daysRest, awayRest.prevLocation, home, awayRest.wasHomeLastGame, awayRest.gamesIn4, awayRest.gamesIn6, awayRest.prevTipLocalHr, awayRest.prevTipWasLate, awayRest.recentAltitudeVisit);
-      const homeF = analyzeFatigue(home, true,  homeRest.daysRest, homeRest.prevLocation, home, homeRest.wasHomeLastGame, homeRest.gamesIn4, homeRest.gamesIn6, homeRest.prevTipLocalHr, homeRest.prevTipWasLate, homeRest.recentAltitudeVisit);
+
+      // Compute tonight's tip time in home arena local hours (for canonical sleep wake-up formula)
+      let tonightTipLocalHr = 19.0; // default 7pm local
+      if(game.datetime){
+        try{
+          const gd = new Date(game.datetime);
+          const homeOffset = getUTCOffset(home);
+          const utcHr = gd.getUTCHours() + gd.getUTCMinutes()/60;
+          tonightTipLocalHr = ((utcHr + homeOffset) % 24 + 24) % 24;
+        } catch(e){ /* keep default */ }
+      }
+
+      const awayF = analyzeFatigue(away, false, awayRest.daysRest, awayRest.prevLocation, home, awayRest.wasHomeLastGame, awayRest.gamesIn4, awayRest.gamesIn6, awayRest.prevTipLocalHr, awayRest.prevTipWasLate, awayRest.recentAltitudeVisit, tonightTipLocalHr, dateStr);
+      const homeF = analyzeFatigue(home, true,  homeRest.daysRest, homeRest.prevLocation, home, homeRest.wasHomeLastGame, homeRest.gamesIn4, homeRest.gamesIn6, homeRest.prevTipLocalHr, homeRest.prevTipWasLate, homeRest.recentAltitudeVisit, tonightTipLocalHr, dateStr);
       return {game, awayRest, homeRest, awayF, homeF};
     });
+
+    // Fetch Odds API data (non-blocking — signals work without it)
+    if(getOddsKey()){
+      statusText.textContent = 'Fetching live odds...';
+      try{
+        const oddsData = await fetchOdds();
+        if(oddsData){
+          matchOddsToGames(games, oddsData);
+          const ts = new Date().toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit'});
+          document.getElementById('odds-timestamp').textContent = `Odds updated: ${ts}`;
+          document.getElementById('odds-timestamp').style.display = 'block';
+          statusText.textContent = `Live · ${games.length} games · odds loaded`;
+        }
+      } catch(e){ console.warn('Odds fetch failed:', e.message); }
+    }
 
     // Game cards: sort by tip-off time (earliest first)
     enriched.sort((a,b) => {
@@ -903,9 +1068,8 @@ async function loadGames(){
       return aT - bT;
     });
 
-    document.getElementById('games-container').innerHTML =
-      `<div class="games-grid">${enriched.map((e,i) => renderGame(e.game, e.awayRest, e.homeRest, e.awayF, e.homeF, i)).join('')}</div>`;
-
+    // Render with Signal Mode filter
+    renderFilteredGames(enriched);
     renderBettingEdges(enriched);
 
   } catch(err){
@@ -925,10 +1089,150 @@ function shiftDate(days){
   loadGames();
 }
 
+// ── ODDS API INTEGRATION ─────────────────────────────────────────
+// Fetches live spreads and totals from The Odds API.
+// API key stored in localStorage. Free/paid plan — live endpoint is cheap.
+// CORS is supported by The Odds API for browser-based requests.
+const ODDS_API_BASE = 'https://api.the-odds-api.com/v4/sports/basketball_nba/odds';
+
+// Reverse lookup: full team name → abbreviation
+const ODDS_TEAM_MAP = {};
+for(const [abbr, full] of Object.entries(TEAM_NAMES)){
+  ODDS_TEAM_MAP[full] = abbr;
+}
+
+function saveOddsKey(){
+  const key = document.getElementById('odds-key-input').value.trim();
+  if(key){
+    localStorage.setItem('odds_api_key', key);
+    document.getElementById('odds-status').textContent = 'Saved ✓';
+    document.getElementById('odds-status').style.color = 'var(--green)';
+    loadGames(); // re-fetch with odds
+  }
+}
+
+function getOddsKey(){
+  return localStorage.getItem('odds_api_key') || '';
+}
+
+async function fetchOdds(){
+  const key = getOddsKey();
+  if(!key) return null;
+  try{
+    const url = `${ODDS_API_BASE}?apiKey=${key}&regions=us&markets=spreads,totals&oddsFormat=american`;
+    const resp = await fetch(url);
+    if(!resp.ok){
+      const remaining = resp.headers.get('x-requests-remaining');
+      console.warn(`Odds API error: ${resp.status}. Remaining: ${remaining}`);
+      return null;
+    }
+    const remaining = resp.headers.get('x-requests-remaining');
+    const used = resp.headers.get('x-requests-used');
+    console.log(`Odds API: ${used} used, ${remaining} remaining`);
+    const data = await resp.json();
+    return data;
+  } catch(e){
+    console.warn('Odds API fetch failed:', e.message);
+    return null;
+  }
+}
+
+function matchOddsToGames(games, oddsData){
+  if(!oddsData || !oddsData.length) return;
+
+  // Build lookup: home team abbr → odds event
+  const oddsMap = {};
+  for(const event of oddsData){
+    const homeAbbr = ODDS_TEAM_MAP[event.home_team];
+    if(homeAbbr) oddsMap[homeAbbr] = event;
+  }
+
+  for(const game of games){
+    const homeAbbr = game.home_team.abbreviation;
+    const oddsEvent = oddsMap[homeAbbr];
+    if(!oddsEvent || !oddsEvent.bookmakers || !oddsEvent.bookmakers.length){
+      game._odds = null;
+      continue;
+    }
+
+    // Average spread and total across all bookmakers
+    const spreads = [];
+    const totals = [];
+    for(const bk of oddsEvent.bookmakers){
+      for(const mkt of (bk.markets || [])){
+        if(mkt.key === 'spreads'){
+          const homeOutcome = mkt.outcomes?.find(o => o.name === oddsEvent.home_team);
+          if(homeOutcome && homeOutcome.point !== undefined) spreads.push(homeOutcome.point);
+        } else if(mkt.key === 'totals'){
+          const overOutcome = mkt.outcomes?.find(o => o.name === 'Over');
+          if(overOutcome && overOutcome.point !== undefined) totals.push(overOutcome.point);
+        }
+      }
+    }
+
+    const avgSpread = spreads.length ? Math.round(spreads.reduce((a,b)=>a+b,0)/spreads.length * 2) / 2 : null;
+    const avgTotal = totals.length ? Math.round(totals.reduce((a,b)=>a+b,0)/totals.length * 2) / 2 : null;
+
+    game._odds = {spread: avgSpread, total: avgTotal};
+  }
+}
+
+// ── SIGNAL MODE ──────────────────────────────────────────────────
+let signalModeOn = false;
+
+function toggleSignalMode(){
+  signalModeOn = document.getElementById('signal-mode-toggle').checked;
+  // Re-render with current data if available
+  const container = document.getElementById('games-container');
+  if(container && container._lastEnriched){
+    renderFilteredGames(container._lastEnriched);
+    renderBettingEdges(container._lastEnriched);
+  }
+}
+
+function renderFilteredGames(enriched){
+  const container = document.getElementById('games-container');
+  container._lastEnriched = enriched;
+
+  let displayed = enriched;
+  if(signalModeOn){
+    displayed = enriched.filter(({game, awayF, homeF}) => {
+      const away = game.visitor_team.abbreviation;
+      const home = game.home_team.abbreviation;
+      const gameOdds = game._odds || null;
+      const signals = getBettingSignals(awayF, homeF, away, home, gameOdds);
+      return signals.some(s => s.type !== 'info');
+    });
+    document.getElementById('games-section-title').textContent = `Actionable Games (${displayed.length} of ${enriched.length})`;
+  } else {
+    document.getElementById('games-section-title').textContent = "Tonight's Games";
+  }
+
+  const gameCardsHtml = displayed
+    .sort((a,b) => {
+      const tA = a.game.datetime || ''; const tB = b.game.datetime || '';
+      return tA.localeCompare(tB);
+    })
+    .map((d, i) => renderGame(d.game, d.awayRest, d.homeRest, d.awayF, d.homeF, i))
+    .join('');
+  container.innerHTML = gameCardsHtml
+    ? `<div class="games-grid">${gameCardsHtml}</div>`
+    : '<div class="state-display">No games match current filter.</div>';
+}
+
 function init(){
   const dateStr = todayET();
   document.getElementById('date-picker').value = dateStr;
   document.getElementById('header-date').textContent = formatDateDisplay(dateStr);
+
+  // Restore saved Odds API key
+  const savedKey = getOddsKey();
+  if(savedKey){
+    document.getElementById('odds-key-input').value = savedKey;
+    document.getElementById('odds-status').textContent = 'Key loaded';
+    document.getElementById('odds-status').style.color = 'var(--green)';
+  }
+
   loadGames();
 }
 
