@@ -116,8 +116,8 @@ def estimate_btb_sleep(from_arena, to_arena, prev_tip_local_hr=20.0, tonight_tip
     departure_dest = game_end + 2.5 + tz_shift
     landing_dest   = departure_dest + flight_hrs
     hotel_arrival  = landing_dest + 0.75
-    # Wake-up capped at 10am local (34.0 on 24+ scale, same as hotel_arrival)
-    wake_up = 34.0
+    # Wake-up capped at 11am local (35.0 on 24+ scale, same as hotel_arrival)
+    wake_up = 35.0
     hotel_sleep = max(0, wake_up - hotel_arrival)
     # Canonical plane sleep: min(60% of flight, hours past midnight) at 50% quality
     midnight_delta = hotel_arrival - 24
