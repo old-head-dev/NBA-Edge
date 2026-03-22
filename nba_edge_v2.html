@@ -387,11 +387,10 @@ function estimateBTBSleep(fromArena, toArena, prevTipLocalHr = 20.0, tonightTipL
   const landingDestLocal = departureDestLocal + flightHrs;
   const hotelArrivalLocal = landingDestLocal + 0.75; // 45min tarmac→bed
 
-  // Wake-up: 3 hours before tonight's tip (canonical formula).
-  // tonightTipLocalHr is the raw local hour (0-24 scale).
-  // hotelArrivalLocal is on a 24+ scale for post-midnight arrivals.
-  // This intentionally matches canonical backtest behavior.
-  const wakeUpLocal = tonightTipLocalHr - 3.0;
+  // Wake-up: capped at 10am local (34.0 on 24+ scale).
+  // Players need to wake, eat, shoot around, treatment regardless of game time.
+  // hotelArrivalLocal is on the same 24+ scale (e.g., 26.5 = 2:30am).
+  const wakeUpLocal = 34.0;
 
   // Hotel sleep = time between arrival and wake-up, floored at 0
   const hotelSleepHrs = Math.max(0, wakeUpLocal - hotelArrivalLocal);
