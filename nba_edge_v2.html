@@ -721,11 +721,10 @@ function getBettingSignals(awayF, homeF, away, home, gameOdds = null){
         flipOk = true;
         flipNote = `HOME ${sp} · market overpricing fatigue`;
       }
-    } else {
-      // Without odds, show as informational — user must check manually
-      flipOk = true;
-      flipNote = 'Check: home fav −1 to −6.5';
     }
+    // Without odds, FLIP does NOT fire — spread range is essential to this signal.
+    // Unlike SPREAD (which has a wider range and historical precedent for manual checking),
+    // FLIP only works within the narrow -1 to -6.5 window.
     if(flipOk){
       signals.push({
         type:'spread-flip',
