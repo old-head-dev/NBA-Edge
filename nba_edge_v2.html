@@ -140,7 +140,8 @@ body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-
 .signal-strip.signal-under-2{color:var(--yellow);}
 .signal-strip.signal-under-3{color:var(--critical);}
 .signal-strip.signal-info{color:var(--muted);font-size:11px;}
-.signal-note{font-size:10px;color:var(--muted);margin-left:4px;}
+.signal-note{font-size:13px;margin-left:4px;}
+.signal-warn{color:var(--critical);}
 .tank-warning{font-size:9px;color:var(--orange);padding:2px 6px;border:1px solid rgba(240,160,48,0.3);border-radius:3px;margin-left:auto;}
 
 /* SIGNAL MODE TOGGLE */
@@ -671,8 +672,7 @@ function getBettingSignals(awayF, homeF, away, home, gameOdds = null){
     else                               { conf = '+';   cls = 'signal-under-1'; }
 
     let totalWarning = '';
-    if(hasTotal && gameOdds.total >= 234) totalWarning = ' · total ≥234 ⚠';
-    else if(!hasTotal) totalWarning = '';
+    if(hasTotal && gameOdds.total >= 234) totalWarning = '<span class="signal-warn"> · total ≥234 ⚠</span>';
 
     signals.push({
       type:'under', confidence:conf,
