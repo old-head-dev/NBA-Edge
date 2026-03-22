@@ -235,10 +235,56 @@ footer{margin-top:40px;padding:20px 32px;border-top:1px solid var(--border);disp
   </div>
 </div>
 
+<!-- SIGNAL RULES REFERENCE -->
+<div style="max-width:900px;margin:40px auto 0;padding:0 32px;">
+  <div style="border:1px solid var(--border);border-radius:8px;padding:20px 24px;background:var(--surface);">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;color:var(--accent);margin-bottom:16px;">SIGNAL RULES REFERENCE</div>
+
+    <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text);line-height:1.8;">
+      <div style="color:var(--green);font-weight:700;margin-bottom:4px;">SPREAD — Bet Away ATS</div>
+      <ul style="margin:0 0 16px 16px;padding:0;list-style:disc;color:var(--muted);">
+        <li>Home team is on a back-to-back</li>
+        <li>Fatigue delta ≥ 4 (home more fatigued)</li>
+        <li>Home spread between <span style="color:var(--text)">-1 and -9.5</span> (no big favorites)</li>
+        <li>Backtest: <span style="color:var(--green)">62.9% · +20.0% ROI</span> (44W 26L)</li>
+      </ul>
+
+      <div style="color:#a064ff;font-weight:700;margin-bottom:4px;">FLIP — Bet Away ATS (Fatigued Away Covers)</div>
+      <ul style="margin:0 0 16px 16px;padding:0;list-style:disc;color:var(--muted);">
+        <li>Away team is on a back-to-back (more fatigued)</li>
+        <li>Fatigue delta ≥ 4 (away more fatigued)</li>
+        <li>Home spread between <span style="color:var(--text)">-1 and -6.5</span> (small-to-mid favorites only)</li>
+        <li>Market over-adjusts for away fatigue — away covers despite being tired</li>
+        <li>Backtest: <span style="color:#a064ff">62.5% · +19.3% ROI</span> (40W 24L)</li>
+      </ul>
+
+      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px;">UNDER — Bet Under</div>
+      <ul style="margin:0 0 16px 16px;padding:0;list-style:disc;color:var(--muted);">
+        <li>Both teams fatigue ≥ 5</li>
+        <li>Away team = Scenario A (road-to-road back-to-back)</li>
+        <li>Closing total < <span style="color:var(--text)">234</span> (stronger signal below this line)</li>
+        <li>Away=B excluded (52% = coin flip)</li>
+        <li>Confidence tiers:
+          <span style="color:var(--critical)">+++</span> Away=A + Home=HH (70.6%, +34.8% ROI) ·
+          <span style="color:var(--yellow)">++</span> Away=A + Home=C (69.6%) ·
+          <span style="color:var(--muted)">+</span> Away=A + other (65%)
+        </li>
+      </ul>
+
+      <div style="color:var(--orange);font-weight:700;margin-bottom:4px;">TANK WATCH</div>
+      <ul style="margin:0 0 0 16px;padding:0;list-style:disc;color:var(--muted);">
+        <li>Teams with wpct < .350 are toxic for ATS signals (36.7% combined)</li>
+        <li>Current list: <span style="color:var(--text)">UTA · WAS · POR · CHA · BKN</span></li>
+        <li>Signals still fire with a warning badge — your call whether to bet</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
 <footer>
-  <span>NBA EDGE MODEL v2.0</span>
-  <span>PHASE 2 — BETTING SIGNAL ENGINE</span>
-  <span>DATA: BALLDONTLIE.IO (FREE TIER)</span>
+  <span>NBA EDGE MODEL v2.1</span>
+  <span>V2 SIGNALS + ODDS API</span>
+  <span>DATA: BALLDONTLIE.IO · THE ODDS API</span>
 </footer>
 
 <script>
