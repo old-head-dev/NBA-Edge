@@ -202,6 +202,9 @@ footer{margin-top:40px;padding:20px 32px;border-top:1px solid var(--border);disp
       <button onclick="saveOddsKey()" style="background:var(--surface2);border:1px solid var(--border);
         border-radius:4px;padding:4px 8px;color:var(--accent);cursor:pointer;font-family:'DM Mono',monospace;
         font-size:10px;letter-spacing:0.5px;">SAVE</button>
+      <button onclick="refreshOdds()" id="refresh-odds-btn" style="background:var(--surface2);border:1px solid rgba(240,192,64,0.3);
+        border-radius:4px;padding:4px 10px;color:var(--accent);cursor:pointer;font-family:'DM Mono',monospace;
+        font-size:10px;letter-spacing:0.5px;">↻ ODDS</button>
       <span id="odds-status" style="font-size:9px;color:var(--muted)"></span>
     </div>
     <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
@@ -1044,21 +1047,6 @@ async function loadGames(){
       return {game, awayRest, homeRest, awayF, homeF};
     });
 
-    // Fetch Odds API data (non-blocking — signals work without it)
-    if(getOddsKey()){
-      statusText.textContent = 'Fetching live odds...';
-      try{
-        const oddsData = await fetchOdds();
-        if(oddsData){
-          matchOddsToGames(games, oddsData);
-          const ts = new Date().toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit'});
-          document.getElementById('odds-timestamp').textContent = `Odds updated: ${ts}`;
-          document.getElementById('odds-timestamp').style.display = 'block';
-          statusText.textContent = `Live · ${games.length} games · odds loaded`;
-        }
-      } catch(e){ console.warn('Odds fetch failed:', e.message); }
-    }
-
     // Game cards: sort by tip-off time (earliest first)
     enriched.sort((a,b) => {
       const aT = a.game.datetime ? new Date(a.game.datetime).getTime() : Infinity;
@@ -1105,7 +1093,6 @@ function saveOddsKey(){
     localStorage.setItem('odds_api_key', key);
     document.getElementById('odds-status').textContent = 'Saved ✓';
     document.getElementById('odds-status').style.color = 'var(--green)';
-    loadGames(); // re-fetch with odds
   }
 }
 
@@ -1173,6 +1160,45 @@ function matchOddsToGames(games, oddsData){
 
     game._odds = {spread: avgSpread, total: avgTotal};
   }
+}
+
+// ── REFRESH ODDS (manual only — no auto-fetch on page load) ─────
+async function refreshOdds(){
+  const key = getOddsKey();
+  if(!key){
+    document.getElementById('odds-status').textContent = 'No API key';
+    document.getElementById('odds-status').style.color = 'var(--orange)';
+    return;
+  }
+  const btn = document.getElementById('refresh-odds-btn');
+  btn.disabled = true;
+  btn.textContent = '...';
+  document.getElementById('odds-status').textContent = 'Fetching...';
+  document.getElementById('odds-status').style.color = 'var(--muted)';
+  try{
+    const oddsData = await fetchOdds();
+    if(!oddsData){ throw new Error('No data returned'); }
+    // Get the current games from the container's cached enriched data
+    const container = document.getElementById('games-container');
+    const enriched = container._lastEnriched;
+    if(!enriched){ throw new Error('Load games first'); }
+    // Attach odds to game objects
+    const games = enriched.map(e => e.game);
+    matchOddsToGames(games, oddsData);
+    const ts = new Date().toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit'});
+    document.getElementById('odds-timestamp').textContent = `Odds updated: ${ts}`;
+    document.getElementById('odds-timestamp').style.display = 'block';
+    document.getElementById('odds-status').textContent = `Updated ${ts}`;
+    document.getElementById('odds-status').style.color = 'var(--green)';
+    // Re-render with odds data
+    renderFilteredGames(enriched);
+    renderBettingEdges(enriched);
+  } catch(e){
+    document.getElementById('odds-status').textContent = `Error: ${e.message}`;
+    document.getElementById('odds-status').style.color = 'var(--orange)';
+  }
+  btn.disabled = false;
+  btn.textContent = '↻ ODDS';
 }
 
 // ── SIGNAL MODE ──────────────────────────────────────────────────
