@@ -116,9 +116,9 @@ def estimate_btb_sleep(from_arena, to_arena, prev_tip_local_hr=20.0, tonight_tip
     departure_dest = game_end + 2.5 + tz_shift
     landing_dest   = departure_dest + flight_hrs
     hotel_arrival  = landing_dest + 0.75
-    # Wake-up capped at 11am local (35.0 on 24+ scale, same as hotel_arrival)
-    wake_up = 35.0
-    # Sleep = arrival to 11am, no extras
+    # Wake-up capped at 10am local (34.0 on 24+ scale, same as hotel_arrival)
+    wake_up = 34.0
+    # Sleep = arrival to 10am, no extras
     total = max(0, wake_up - hotel_arrival)
     return {"dist": dist, "flight_hrs": round(flight_hrs,1),
             "total": round(total,1), "tz_delta": tz_shift}
