@@ -198,7 +198,7 @@ def analyze_fatigue(team, is_home, days_rest, prev_arena, home_team, was_home_la
     return {"score": score, "scenario": "A", "detail": f"BTB road trip · {s['dist']}mi", "is_btb": True, "sleep": round(adj,1)}
 
 # Team quality: wpct < .350 is toxic (36.7% ATS combined)
-TANK_WATCH = {"UTA", "WAS", "POR", "CHA", "BKN"}
+TANK_WATCH = {"UTA", "SAC", "BKN", "IND", "WAS"}
 
 def get_betting_signals(away_f, home_f, away_abbr=None, home_abbr=None):
     """
