@@ -853,7 +853,7 @@ function renderGame(game, awayRest, homeRest, awayF, homeF, idx){
 
   // Render all signal strips
   const signalStrips = signals.map(sig => {
-    const tankBadge = sig.tankWarning ? `<span class="tank-warning">⚠ ${sig.tankTeam} low quality</span>` : '';
+    const tankBadge = sig.tankWarning ? `<span class="tank-warning">⚠ ${sig.tankTeam} tank risk</span>` : '';
     if(sig.type === 'spread'){
       return `<div class="signal-strip signal-spread" style="justify-content:flex-start;">
         <span>${sig.label}</span><span class="signal-note">· ${sig.note}</span>${tankBadge}
