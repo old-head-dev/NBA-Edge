@@ -700,6 +700,9 @@ const TANK_WATCH = ['UTA', 'SAC', 'BKN', 'IND', 'WAS'];
 //
 // INFO: away fatigued + BTB + delta >= 2 but no actionable signal → muted note
 //
+// Format spread with explicit +/- sign (e.g., +3.5, -5.5)
+function fmtSpread(sp){ return sp > 0 ? `+${sp}` : `${sp}`; }
+
 // gameOdds: optional {spread, total} from Odds API. null if not available.
 function getBettingSignals(awayF, homeF, away, home, gameOdds = null){
   const signals = [];
@@ -734,9 +737,9 @@ function getBettingSignals(awayF, homeF, away, home, gameOdds = null){
     let spreadReason = '';
     if(hasOdds){
       const sp = gameOdds.spread;
-      if(sp > -1){ spreadOk = false; spreadReason = `HOME ${sp} — not favored enough (need −1 to −9.5)`; }
-      else if(sp < -9.5){ spreadOk = false; spreadReason = `HOME ${sp} — big favorite, dead money`; }
-      else { spreadNote = `HOME ${sp}`; }
+      if(sp > -1){ spreadOk = false; spreadReason = `HOME ${fmtSpread(sp)} — not favored enough (need −1 to −9.5)`; }
+      else if(sp < -9.5){ spreadOk = false; spreadReason = `HOME ${fmtSpread(sp)} — big favorite, dead money`; }
+      else { spreadNote = `HOME ${fmtSpread(sp)}`; }
     }
     if(spreadOk){
       signals.push({
@@ -766,11 +769,11 @@ function getBettingSignals(awayF, homeF, away, home, gameOdds = null){
       const sp = gameOdds.spread;
       if(sp <= -1 && sp >= -6.5){
         flipOk = true;
-        flipNote = `HOME ${sp} · market overpricing fatigue`;
+        flipNote = `HOME ${fmtSpread(sp)} · market overpricing fatigue`;
       } else {
         flipReason = sp > -1
-          ? `HOME ${sp} — not favored enough (need −1 to −6.5)`
-          : `HOME ${sp} — spread too wide (need −1 to −6.5)`;
+          ? `HOME ${fmtSpread(sp)} — not favored enough (need −1 to −6.5)`
+          : `HOME ${fmtSpread(sp)} — spread too wide (need −1 to −6.5)`;
       }
     }
     if(flipOk){
@@ -980,7 +983,7 @@ function renderBettingEdges(enriched){
           </div>`);
       } else if(signal.type === 'spread'){
         const spreadNote = gameOdds && gameOdds.spread !== null
-          ? `HOME ${gameOdds.spread}` : 'if home fav −1 to −9.5';
+          ? `HOME ${fmtSpread(gameOdds.spread)}` : 'if home fav −1 to −9.5';
         panelCards.push(`
           <div class="rank-card rc-spread">
             <div class="rank-num">${cardNum}</div>
@@ -999,7 +1002,7 @@ function renderBettingEdges(enriched){
           </div>`);
       } else if(signal.type === 'spread-flip'){
         const flipNote = gameOdds && gameOdds.spread !== null
-          ? `HOME ${gameOdds.spread}` : 'check: home fav −1 to −6.5';
+          ? `HOME ${fmtSpread(gameOdds.spread)}` : 'check: home fav −1 to −6.5';
         panelCards.push(`
           <div class="rank-card" style="border-color:rgba(160,100,255,0.4)">
             <div class="rank-num">${cardNum}</div>
