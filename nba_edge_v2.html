@@ -731,10 +731,11 @@ function getBettingSignals(awayF, homeF, away, home, gameOdds = null){
   if(diff < 0 && delta >= 4 && homeF.isBTB){
     let spreadNote = 'Verify home fav −1 to −9.5';
     let spreadOk = true;
+    let spreadReason = '';
     if(hasOdds){
       const sp = gameOdds.spread;
-      if(sp > -1){ spreadOk = false; } // home not favored enough — validated window is -1 to -9.5
-      else if(sp < -9.5){ spreadOk = false; } // big favorite — dead money (50%)
+      if(sp > -1){ spreadOk = false; spreadReason = `HOME ${sp} — not favored enough (need −1 to −9.5)`; }
+      else if(sp < -9.5){ spreadOk = false; spreadReason = `HOME ${sp} — big favorite, dead money`; }
       else { spreadNote = `HOME ${sp}`; }
     }
     if(spreadOk){
@@ -744,6 +745,13 @@ function getBettingSignals(awayF, homeF, away, home, gameOdds = null){
         note: spreadNote,
         cls:'signal-spread',
       });
+    } else if(hasOdds){
+      signals.push({
+        type:'suppressed',
+        label:'SPREAD suppressed',
+        note: spreadReason,
+        cls:'signal-info',
+      });
     }
   }
 
@@ -752,23 +760,32 @@ function getBettingSignals(awayF, homeF, away, home, gameOdds = null){
   // Requires home spread -1 to -6.5
   if(diff > 0 && delta >= 4 && awayF.isBTB){
     let flipNote = 'Requires home fav −1 to −6.5';
-    let flipOk = false; // only fires when we can verify spread range
+    let flipOk = false;
+    let flipReason = '';
     if(hasOdds){
       const sp = gameOdds.spread;
       if(sp <= -1 && sp >= -6.5){
         flipOk = true;
         flipNote = `HOME ${sp} · market overpricing fatigue`;
+      } else {
+        flipReason = sp > -1
+          ? `HOME ${sp} — not favored enough (need −1 to −6.5)`
+          : `HOME ${sp} — spread too wide (need −1 to −6.5)`;
       }
     }
-    // Without odds, FLIP does NOT fire — spread range is essential to this signal.
-    // Unlike SPREAD (which has a wider range and historical precedent for manual checking),
-    // FLIP only works within the narrow -1 to -6.5 window.
     if(flipOk){
       signals.push({
         type:'spread-flip',
         label:'↕ Bet Away (Flip)',
         note: flipNote,
         cls:'signal-flip',
+      });
+    } else if(hasOdds){
+      signals.push({
+        type:'suppressed',
+        label:'FLIP suppressed',
+        note: flipReason,
+        cls:'signal-info',
       });
     }
   }
@@ -866,6 +883,10 @@ function renderGame(game, awayRest, homeRest, awayF, homeF, idx){
       return `<div class="signal-strip ${sig.cls}" style="justify-content:center;">
         <span>${sig.label}</span>${sig.note ? `<span class="signal-note">· ${sig.note}</span>` : ''}${tankBadge}
       </div>`;
+    } else if(sig.type === 'suppressed'){
+      return `<div class="signal-strip signal-info" style="justify-content:flex-start;">
+        <span>${sig.label}</span><span class="signal-note">· ${sig.note}</span>
+      </div>`;
     } else if(sig.type === 'info'){
       return `<div class="signal-strip signal-info" style="justify-content:center;">
         <span>${sig.label}</span>
@@ -922,7 +943,7 @@ function renderBettingEdges(enriched){
     const signals = getBettingSignals(awayF, homeF, away, home, gameOdds);
 
     signals.forEach(signal => {
-      if(signal.type === 'info') return;
+      if(signal.type === 'info' || signal.type === 'suppressed') return;
       cardNum++;
 
       const tankBadge = signal.tankWarning
@@ -1261,7 +1282,7 @@ function renderFilteredGames(enriched){
       const home = game.home_team.abbreviation;
       const gameOdds = game._odds || null;
       const signals = getBettingSignals(awayF, homeF, away, home, gameOdds);
-      return signals.some(s => s.type !== 'info');
+      return signals.some(s => s.type !== 'info' && s.type !== 'suppressed');
     });
     document.getElementById('games-section-title').textContent = `Actionable Games (${displayed.length} of ${enriched.length})`;
   } else {
