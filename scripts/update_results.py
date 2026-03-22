@@ -118,11 +118,8 @@ def estimate_btb_sleep(from_arena, to_arena, prev_tip_local_hr=20.0, tonight_tip
     hotel_arrival  = landing_dest + 0.75
     # Wake-up capped at 11am local (35.0 on 24+ scale, same as hotel_arrival)
     wake_up = 35.0
-    hotel_sleep = max(0, wake_up - hotel_arrival)
-    # Canonical plane sleep: min(60% of flight, hours past midnight) at 50% quality
-    midnight_delta = hotel_arrival - 24
-    plane_sleep_raw = min(flight_hrs * 0.6, midnight_delta) if midnight_delta > 0 else 0
-    total = hotel_sleep + (plane_sleep_raw * 0.5)
+    # Sleep = arrival to 11am, no extras
+    total = max(0, wake_up - hotel_arrival)
     return {"dist": dist, "flight_hrs": round(flight_hrs,1),
             "total": round(total,1), "tz_delta": tz_shift}
 
@@ -162,7 +159,7 @@ def analyze_fatigue(team, is_home, days_rest, prev_arena, home_team, was_home_la
             return {"score": score, "scenario": None, "detail": "Home court", "is_btb": False}
         if not was_home_last:
             s = estimate_btb_sleep(prev_arena or team, home_team, prev_tip_hr, tonight_tip_local_hr, date_str)
-            adj = round((s["total"] + 1.5) * 10) / 10  # +1.5 own-bed bonus (canonical)
+            adj = round(s["total"] * 10) / 10  # base score difference (C=4 vs A=5) reflects own-bed advantage
             score = compute_fatigue_score("C", True, adj, s["tz_delta"], prev_late, density_tag, 0)
             return {"score": score, "scenario": "C", "detail": f"BTB away→home · {s['dist']}mi", "is_btb": True, "sleep": adj}
         else:

@@ -395,16 +395,8 @@ function estimateBTBSleep(fromArena, toArena, prevTipLocalHr = 20.0, tonightTipL
   // hotelArrivalLocal is on the same 24+ scale (e.g., 26.5 = 2:30am).
   const wakeUpLocal = 35.0;
 
-  // Hotel sleep = time between arrival and wake-up, floored at 0
-  const hotelSleepHrs = Math.max(0, wakeUpLocal - hotelArrivalLocal);
-
-  // Plane sleep: canonical formula — min(60% of flight time, hours past midnight)
-  // midnightDelta = how many hours after midnight the team arrived at hotel
-  const midnightDelta = hotelArrivalLocal - 24;
-  const planeSleepHrs = midnightDelta > 0 ? Math.min(flightHrs * 0.6, midnightDelta) : 0;
-
-  // Total: hotel sleep + plane sleep at 50% quality
-  const totalEffectiveSleep = hotelSleepHrs + (planeSleepHrs * 0.5);
+  // Sleep = time between hotel arrival and 11am wake-up, floored at 0
+  const totalEffectiveSleep = Math.max(0, wakeUpLocal - hotelArrivalLocal);
 
   // Format arrival for display
   const arrMod = ((hotelArrivalLocal % 24) + 24) % 24;
@@ -472,9 +464,9 @@ function analyzeFatigue(teamAbbr, isHome, daysRest, prevArena, homeTeamAbbr, was
     }
     if(!wasHomeLastGame){
       // Scenario C: Away→Home BTB — flew home, sleeping in own bed
-      // +1.5 own-bed bonus matches canonical backtest (nba_backtest.js line 186)
+      // Base score difference (C=4 vs A=5) already reflects the own-bed advantage
       const s = estimateBTBSleep(prevArena || teamAbbr, homeTeamAbbr, prevTipLocalHr, tonightTipLocalHr, dateStr);
-      const adj = Math.round((s.totalEffectiveSleep + 1.5) * 10) / 10;
+      const adj = Math.round(s.totalEffectiveSleep * 10) / 10;
       const tier = adj >= 7 ? 'average' : adj >= 4 ? 'poor' : 'critical'; // canonical: capped at 'average' for Scenario C
       return {tier, isBTB:true, dist:s.dist, flightHrs:s.flightHrs, tzDelta:s.tzDelta,
         effectiveSleep: Math.round(adj*10)/10,
