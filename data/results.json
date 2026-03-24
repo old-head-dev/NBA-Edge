@@ -273,10 +273,39 @@
       "edge_ats": null,
       "flip_ats": null,
       "under_result": "LOSS"
+    },
+    {
+      "event_id": "ze1OgDkJiP5FGiPQnzGh",
+      "date": "2026-03-23",
+      "starts_at": "2026-03-24T02:00:00.000Z",
+      "matchup": "BKN @ POR",
+      "away": "BKN",
+      "home": "POR",
+      "away_score": 99,
+      "home_score": 134,
+      "away_fatigue": 7.0,
+      "home_fatigue": 6.0,
+      "away_scenario": "A",
+      "home_scenario": "C",
+      "away_detail": "BTB road trip \u00b7 484mi",
+      "home_detail": "BTB away\u2192home \u00b7 980mi",
+      "fatigue_diff": 1.0,
+      "edge": "HOME",
+      "flagged_team": "BKN",
+      "both_tired": true,
+      "signal_type": "under",
+      "under_confidence": "++",
+      "close_spread": -15.5,
+      "close_total": 218.5,
+      "ats_result": "home",
+      "ou_result": "over",
+      "edge_ats": null,
+      "flip_ats": null,
+      "under_result": "LOSS"
     }
   ],
   "meta": {
-    "last_updated": "2026-03-22 08:51 ET",
-    "total_flagged": 10
+    "last_updated": "2026-03-24 09:11 ET",
+    "total_flagged": 11
   }
 }
