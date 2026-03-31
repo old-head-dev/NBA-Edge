@@ -360,10 +360,39 @@
       "edge_ats": "WIN",
       "flip_ats": null,
       "under_result": null
+    },
+    {
+      "event_id": "wPcKKM181zvixs6CFfUl",
+      "date": "2026-03-30",
+      "starts_at": "2026-03-30T23:30:00.000Z",
+      "matchup": "BOS @ ATL",
+      "away": "BOS",
+      "home": "ATL",
+      "away_score": 102,
+      "home_score": 112,
+      "away_fatigue": 7.0,
+      "home_fatigue": 2.0,
+      "away_scenario": "A",
+      "home_scenario": null,
+      "away_detail": "BTB road trip \u00b7 227mi",
+      "home_detail": "Home court",
+      "fatigue_diff": 5.0,
+      "edge": "HOME",
+      "flagged_team": "BOS",
+      "both_tired": false,
+      "signal_type": "spread-flip",
+      "under_confidence": null,
+      "close_spread": -2.5,
+      "close_total": 225.5,
+      "ats_result": "home",
+      "ou_result": "under",
+      "edge_ats": null,
+      "flip_ats": "LOSS",
+      "under_result": null
     }
   ],
   "meta": {
-    "last_updated": "2026-03-30 09:19 ET",
-    "total_flagged": 13
+    "last_updated": "2026-03-31 09:17 ET",
+    "total_flagged": 14
   }
 }
