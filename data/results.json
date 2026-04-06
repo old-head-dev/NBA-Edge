@@ -505,10 +505,39 @@
       "edge_ats": null,
       "flip_ats": "LOSS",
       "under_result": null
+    },
+    {
+      "event_id": "eJFjme9M1OrvKLAzT5g4",
+      "date": "2026-04-05",
+      "starts_at": "2026-04-05T19:30:00.000Z",
+      "matchup": "WAS @ BKN",
+      "away": "WAS",
+      "home": "BKN",
+      "away_score": 115,
+      "home_score": 121,
+      "away_fatigue": 5.0,
+      "home_fatigue": 0,
+      "away_scenario": "A",
+      "home_scenario": null,
+      "away_detail": "BTB road trip \u00b7 1090mi",
+      "home_detail": "Home court",
+      "fatigue_diff": 5.0,
+      "edge": "HOME",
+      "flagged_team": "WAS",
+      "both_tired": false,
+      "signal_type": "spread-flip",
+      "under_confidence": null,
+      "close_spread": -3.5,
+      "close_total": 230.5,
+      "ats_result": "home",
+      "ou_result": "over",
+      "edge_ats": null,
+      "flip_ats": "LOSS",
+      "under_result": null
     }
   ],
   "meta": {
-    "last_updated": "2026-04-04 08:54 ET",
-    "total_flagged": 18
+    "last_updated": "2026-04-06 09:09 ET",
+    "total_flagged": 19
   }
 }
