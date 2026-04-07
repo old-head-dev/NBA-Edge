@@ -1,56 +1,58 @@
-# Session Handoff — 2026-03-21 (Session 2)
+# Session Handoff — 2026-04-07 (V3 Audit & Rebuild)
 
 ## What Was Done
 
-### Local Project (NBA Model)
-- `68e744e` Committed outstanding analysis scripts, reports, and future plan doc
-- Merged `feature/model-improvements` → `master` (fast-forward)
+### V2 Audit (confirmed model is overfit)
+- Ran formal audit per `docs/MLB_LESSONS_AUDIT.md` methodology
+- Cross-season analysis: FLIP signal reversed between seasons (43.4% → 61.7% = noise)
+- In-sample mining confirmed by user: thresholds mined from backtest data, both seasons combined
+- Live results: 6-13 (31%) — model does not work
+- `backtest/audit_analysis.py` — standalone V2 audit script (untracked, can delete)
 
-### Live Tool (NBA-Edge repo — all deployed to GitHub Pages)
+### V3 Phase 1 — Analysis Pipeline (COMPLETE)
+- `4a3ff4b` Design spec: `docs/superpowers/specs/2026-04-07-v3-fresh-start-design.md`
+- `2025021` Arena module: coordinates, Haversine, team normalization (25 tests)
+- `96aa6aa` Data loader: Kaggle CSV + SBR JSON with ATS/OU computation (39 tests)
+- `3ab3f49` Data validation: spot-checks, cross-reference, quality reports
+- `61f955c` Schedule context engine: B2B, travel, distance, sleep, density, altitude, win% (49 tests)
+- `0e180b3` Signal analysis engine: Wilson CI, 12 signal conditions, audit report (70 tests)
+- `a7bb895` Validation engine: leave-one-season-out CV, monotonicity checks
+- `eca2bb0` Pipeline orchestrator
+- `2441c5b` First full pipeline run on 6,150 games (5 seasons)
+- Additional analysis: loaded 2025-26 from MGM Kaggle dataset (808 games), ran LOSO across all 6 seasons
 
-**Signal Rules (Tiers 1-2):**
-- `d691f3c` V2.1 signal engine: SPREAD (delta>=4, home BTB, spread -1 to -9.5), UNDER (3 confidence tiers +++/++/+, Away=A only, total<234 gate), SPREAD-FLIP new signal (delta>=4, away BTB, spread -1 to -6.5)
-- `d801073` Tank watch warnings (UTA/WAS/POR/CHA/BKN) with "tank risk" badge
-- `2008004` FLIP only fires when Odds API provides spread data (no false signals without odds)
+**183 tests passing.** Full pipeline at `backtest/v3/`, data at `backtest/v3/data/` (gitignored).
 
-**Fatigue Model:**
-- Sleep scoring: <4hrs = +4 (removed old <2hrs = +5 tier)
-- `a5fa172` Sleep formula simplified: arrival-to-10am, no plane sleep stacking, no Scenario C +1.5 bonus
-- `d97c8e9` Wake-up cap aligned to 10am (34.0) across all paths (road BTB, home-home, Scenario B)
-- `1a798c0` Fixed crash from dangling hotelSleepHrs/planeSleepHrs references
+### V3 Signal Findings
+- **S2 (Home B2B + traveled → Bet Away ATS):** 4/6 LOSO folds pass, 3/3 recent, combined 56.8% [50.8-62.6%]. Only signal that never reverses direction.
+- **B2 (Both B2B + both traveled → Home ATS):** 4/6 folds pass, but per-fold Ns of 18-31. Monitoring only.
+- **S4 (Away B2B):** Perfect 50/50 across 6 seasons — market prices away fatigue correctly.
+- **All totals signals:** Dead. No O/U edge for any fatigue condition.
+- **V2 signals (SPREAD, FLIP, UNDER):** All killed.
 
-**New Features (Tier 3):**
-- `1fad292` Odds API integration — manual refresh only (↻ ODDS button), localStorage key, averages across bookmakers
-- Signal Mode toggle — hides non-actionable games
-- `635e888` Signal rules reference section at bottom of page
-- `eb1a54e` Odds font matched to signal strip; total ≥234 warning in red
-
-**Results Dashboard (results.html):**
-- FLIP filter button, confidence tiers in signal pills, flip_ats display, compound signal types
-
-**Nightly Script (update_results.py):**
-- All signal rules mirrored (SPREAD gate -1 to -9.5, FLIP gate -1 to -6.5, UNDER total<234)
-- flip_ats grading, under_confidence in results.json
-- Same fatigue model fixes (10am cap, no plane sleep, no +1.5)
+### V3 Live Tool Plan (WRITTEN, NOT YET IMPLEMENTED)
+- `ae6fc90` Deployment plan: `docs/superpowers/plans/2026-04-07-v3-live-tool-deployment.md`
+- 6 tasks: rebuild live HTML tool, update nightly grading, results dashboard, GitHub Action
+- Reviewed by code-reviewer agent — critical fixes applied
 
 ## What's Left
 
-1. **Monitor nightly action** — Watch results.html each morning for 3-5 days to confirm the nightly grader works with the new signal rules. First graded game under V2.1 rules will appear tomorrow morning.
-2. **Update TANK_WATCH monthly** — Currently hardcoded: UTA, WAS, POR, CHA, BKN. Check standings periodically.
-3. **Win% accumulator (deferred)** — Plan called for dynamic wpct tracking in Python. TANK_WATCH proxy is sufficient for now. Revisit if team quality shifts mid-season.
-4. **Reconcile local backtest** — The local `nba_backtest.js` still uses the old sleep formula (tipLocal-3.0, plane sleep stacking, Scenario C +1.5). If you re-run backtests, scores will differ from the live tool. Consider updating the local backtest to match the simplified formula (10am cap, no extras).
-5. **Tiers 4-5 (future)** — Saved at `docs/superpowers/specs/2026-03-21-model-architecture-future-plan.md`. Includes continuous scoring, empirical weights, net rating, threshold validation.
+1. **Implement V3 live tool deployment plan** — the 6-task plan at `docs/superpowers/plans/2026-04-07-v3-live-tool-deployment.md`. This is the next session's work.
+2. **Generate formal validation report** — run `python -m v3.validate_signals` to save LOSO results to file (was run interactively but not saved).
+3. **Push to remote** — 14 commits ahead of origin. Push after implementation or before if you want to checkpoint.
+4. **Phase 2 investigation (future)** — tip time data from BDL API could test whether late tips amplify S2 edge. Distance buckets showed 500-750mi peak (61.7%) but N=75. Worth revisiting with more data.
+5. **B2 monitoring** — accumulate 2-3 more seasons before promoting to primary signal.
 
-## Known Issues & Gotchas
+## Known Issues
 
-- **Browser caching on mobile** — GitHub Pages caches aggressively. After deploying changes, may need to clear Safari cache or use incognito to see updates on iPhone.
-- **Local backtest divergence** — Local `nba_backtest.js` sleep formula now differs from live tool. Live uses fixed 10am cap; local uses tipLocal-3.0 which produces near-zero hotel sleep due to coordinate system mismatch. The live tool's formula is correct per user direction.
-- **NBA-Edge cloned locally** — The GitHub repo is now also cloned at `C:\Users\jkher\Documents\Claude\NBA-Edge` for direct editing. Push from there for live tool changes.
-- **Odds API credits** — Manual refresh only. Each click = 1 API call. ~10,690 credits remaining on $30/month plan.
-- **`pr-1-full-diff.txt`** — Untracked temp file in NBA-Edge repo from the code review. Can be deleted.
+- `backtest/audit_analysis.py` is untracked — V2 audit script, can be deleted or committed for reference.
+- 14 commits ahead of origin — not yet pushed.
+- 2025-26 MGM data covers through ASB (Feb 12, 2026) only — remaining 2025-26 games (Feb-Apr) not in dataset.
+- Kaggle dataset has NO tip times (all default to 7:30pm ET) — limits sleep estimation usefulness.
+- Free datasets use different team naming conventions: Kaggle=lowercase abbrevs (`gs`, `sa`), SBR=full names (`Warriors`, `Celtics`), MGM=city/nickname (`Golden State`, `LA Lakers`). All normalized by the loader.
 
 ## Starter Prompt
 
 ```
-Read HANDOFF.md in the NBA Model project. This continues work on the NBA Edge fatigue betting model. The V2.1 live tool is deployed at https://old-head-dev.github.io/NBA-Edge/nba_edge_v2.html with refined signal rules, SPREAD-FLIP signal, Odds API integration, and fatigue model fixes. The nightly grading script has been updated to match. The NBA-Edge repo is cloned at C:\Users\jkher\Documents\Claude\NBA-Edge. Key next step: monitor the nightly action results for the next few days to confirm V2.1 signals are being graded correctly. If re-running backtests, note the local nba_backtest.js sleep formula diverges from the live tool — update it to match (fixed 10am wake-up cap, no plane sleep stacking, no Scenario C +1.5).
+Read HANDOFF.md in the NBA-Edge project. This continues the V3 rebuild of the NBA Edge fatigue betting model. The V3 analysis pipeline is complete (183 tests, 6 seasons analyzed). One signal survived validation: S2 (home team on B2B + traveled → bet away ATS, 57% across 6 seasons). The next step is implementing the V3 live tool deployment plan at docs/superpowers/plans/2026-04-07-v3-live-tool-deployment.md — 6 tasks: rebuild the HTML live tool around S2, update nightly grading script, results dashboard, and GitHub Action. The plan has been reviewed by a code-reviewer agent with critical fixes applied. Use subagent-driven development to execute.
 ```
