@@ -1,0 +1,16 @@
+# Backtest data (local-only, reproducible from scripts)
+backtest/data/
+
+# Work artifacts
+*.xlsx
+*.bak
+*.log
+
+# Editor/IDE
+.claude/
+.vscode/
+node_modules/
+
+# OS
+Thumbs.db
+Desktop.ini

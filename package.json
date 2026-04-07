@@ -1,0 +1,13 @@
+{
+  "name": "nba-edge-model",
+  "version": "2.0.0",
+  "description": "NBA fatigue-based betting edge model — backtest and analysis tools",
+  "scripts": {
+    "backtest": "node backtest/nba_backtest.js",
+    "backtest:24-25": "node backtest/nba_backtest.js --start 2024-11-01 --end 2025-04-13",
+    "backtest:25-26": "node backtest/nba_backtest.js --start 2025-11-01 --end 2026-04-13"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

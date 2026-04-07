@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NBA Injury Report Links</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #111118;
+  --surface2: #1a1a24;
+  --border: #2a2a3a;
+  --accent: #00e5a0;
+  --text: #e8e8f0;
+  --muted: #6b6b88;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:32px; max-width:520px; width:100%; margin:20px; }
+h1 { font-family:'Bebas Neue',sans-serif; font-size:28px; letter-spacing:3px; margin-bottom:4px; }
+h1 span { color:var(--accent); }
+.subtitle { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:28px; }
+.current-time { font-family:'DM Mono',monospace; font-size:12px; color:var(--muted); margin-bottom:6px; }
+.current-time span { color:var(--text); }
+.link-box { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin-bottom:16px; }
+.link-label { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
+.link-url { font-family:'DM Mono',monospace; font-size:11px; color:var(--accent); word-break:break-all; line-height:1.5; margin-bottom:10px; }
+.btn-row { display:flex; gap:8px; }
+.btn { font-family:'DM Mono',monospace; font-size:11px; padding:7px 14px; border-radius:6px; cursor:pointer; border:none; transition:all 0.15s; letter-spacing:0.5px; text-decoration:none; display:inline-block; }
+.btn-open { background:var(--accent); color:#000; font-weight:500; }
+.btn-open:hover { background:#00ffb3; }
+.btn-copy { background:transparent; border:1px solid var(--border); color:var(--muted); }
+.btn-copy:hover { border-color:var(--accent); color:var(--accent); }
+.btn-copy.copied { border-color:var(--accent); color:var(--accent); }
+.divider { border:none; border-top:1px solid var(--border); margin:20px 0; }
+.prev-label { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; }
+.prev-link { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #1a1a24; }
+.prev-link:last-child { border-bottom:none; }
+.prev-time { font-family:'DM Mono',monospace; font-size:11px; color:var(--muted); }
+.prev-actions { display:flex; gap:6px; }
+.btn-sm { font-family:'DM Mono',monospace; font-size:10px; padding:4px 10px; border-radius:5px; cursor:pointer; border:none; transition:all 0.15s; text-decoration:none; display:inline-block; }
+.btn-sm-open { background:var(--accent); color:#000; }
+.btn-sm-open:hover { background:#00ffb3; }
+.btn-sm-copy { background:transparent; border:1px solid var(--border); color:var(--muted); }
+.btn-sm-copy:hover { border-color:var(--accent); color:var(--accent); }
+.refresh-note { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-align:center; margin-top:16px; }
+.refresh-note span { color:var(--accent); cursor:pointer; }
+.refresh-note span:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>NBA <span>INJURY</span> LINKS</h1>
+  <p class="subtitle">Official NBA Report · Auto-generated URLs</p>
+
+  <div class="current-time">Current ET time: <span id="clock">--</span></div>
+
+  <div class="link-box">
+    <div class="link-label">Latest Report</div>
+    <div class="link-url" id="latest-url">—</div>
+    <div class="btn-row">
+      <a class="btn btn-open" id="latest-open" href="#" target="_blank">OPEN PDF</a>
+      <button class="btn btn-copy" onclick="copyUrl('latest-url', this)">COPY URL</button>
+    </div>
+  </div>
+
+  <hr class="divider">
+  <div class="prev-label">Previous 4 Reports</div>
+  <div id="prev-links"></div>
+
+  <p class="refresh-note">Updates every 15 min · <span onclick="update()">Refresh now</span></p>
+</div>
+
+<script>
+function getReportUrl(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  let hours = date.getHours();
+  const mins = date.getMinutes();
+  const roundedMins = Math.floor(mins / 15) * 15;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const h12 = hours % 12 || 12;
+  return {
+    url: `https://ak-static.cms.nba.com/referee/injury/Injury-Report_${year}-${month}-${day}_${String(h12).padStart(2,'0')}_${String(roundedMins).padStart(2,'0')}${ampm}.pdf`,
+    label: formatTimeLabel(date, roundedMins)
+  };
+}
+
+function formatTimeLabel(date, roundedMins) {
+  let hours = date.getHours();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const h12 = hours % 12 || 12;
+  return `${h12}:${String(roundedMins).padStart(2,'0')} ${ampm} ET`;
+}
+
+function getETDate() {
+  // Get current time in ET
+  const now = new Date();
+  const etString = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  return new Date(etString);
+}
+
+function update() {
+  const etNow = getETDate();
+  const mins = etNow.getMinutes();
+  const roundedMins = Math.floor(mins / 15) * 15;
+  etNow.setMinutes(roundedMins, 0, 0);
+
+  // Update clock
+  document.getElementById('clock').textContent = formatTimeLabel(etNow, roundedMins);
+
+  // Latest
+  const latest = getReportUrl(etNow);
+  document.getElementById('latest-url').textContent = latest.url;
+  document.getElementById('latest-open').href = latest.url;
+
+  // Previous 4
+  const prevContainer = document.getElementById('prev-links');
+  prevContainer.innerHTML = '';
+  for (let i = 1; i <= 4; i++) {
+    const prev = new Date(etNow.getTime() - i * 15 * 60000);
+    const prevMins = Math.floor(prev.getMinutes() / 15) * 15;
+    prev.setMinutes(prevMins, 0, 0);
+    const r = getReportUrl(prev);
+    prevContainer.innerHTML += `
+      <div class="prev-link">
+        <span class="prev-time">${r.label}</span>
+        <div class="prev-actions">
+          <a class="btn-sm btn-sm-open" href="${r.url}" target="_blank">OPEN</a>
+          <button class="btn-sm btn-sm-copy" onclick="copyUrl(null, this, '${r.url}')">COPY</button>
+        </div>
+      </div>`;
+  }
+}
+
+function copyUrl(elId, btn, directUrl) {
+  const url = directUrl || document.getElementById(elId).textContent;
+  navigator.clipboard.writeText(url).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'COPIED!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+// Update immediately and every minute
+update();
+setInterval(update, 60000);
+</script>
+</body>
+</html>
