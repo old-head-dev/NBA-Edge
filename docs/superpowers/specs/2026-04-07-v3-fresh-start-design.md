@@ -104,11 +104,12 @@ Note: One-sided signals explicitly exclude games where both teams are on B2B. Th
 
 **Both-Fatigued:**
 
+Note: The away (road) team always traveled to the game venue. So "at least one traveled" is always true — the meaningful distinction is whether the HOME team also traveled (played away yesterday and flew back).
+
 | ID | Condition | Measurements |
 |----|-----------|-------------|
-| B1 | Both on B2B | ATS split + O/U split |
-| B2 | Both on B2B + at least one traveled | ATS split + O/U split |
-| B3 | Both on B2B + both traveled | ATS split + O/U split |
+| B1 | Both on B2B, only road team traveled (home had home-home B2B) | ATS split + O/U split |
+| B2 | Both on B2B, both teams traveled (home also played away yesterday) | ATS split + O/U split |
 
 **Schedule Density:**
 
@@ -158,22 +159,20 @@ If estimated sleep hours correlates more strongly with ATS/OU outcomes than dist
 
 ### Tanking Filter
 
-Teams actively tanking (resting starters, playing developmental lineups) create noise that can inflate or mask real signals.
+Teams actively tanking (resting starters, playing developmental lineups) create noise that can inflate or mask real signals. Tanking is primarily a post-All-Star-break phenomenon — teams make their playoff push/tank decision around the trade deadline.
 
-**Approach:** Don't pre-exclude — test the impact.
+**Approach:** Segment analysis by season phase, apply tanking filter only post-ASB.
 
-1. Run every signal analysis three ways:
-   - All teams (full dataset)
-   - Exclude teams below win% threshold
-   - Compare whether signal rates change meaningfully
+1. Run every signal analysis for three season segments:
+   - Full season (all games)
+   - Pre-All-Star break only
+   - Post-All-Star break only
 
-2. Test at multiple win% thresholds: .250, .300, .350
+2. For post-ASB segment, also run with tanking teams excluded:
+   - Test at multiple win% thresholds: .250, .300, .350 (win% at ASB)
+   - Compare whether signal rates change meaningfully with/without tanking teams
 
-3. Test season phase:
-   - Full season vs. pre-All-Star vs. post-All-Star
-   - Catches teams that start tanking mid-season (post-trade-deadline)
-
-4. In the live tool: use dynamic win% cutoff at game time. No hardcoded team lists.
+3. In the live tool: tanking filter only activates after the All-Star break each season. Before ASB, all teams are treated equally. After ASB, teams below the validated win% threshold are flagged.
 
 ---
 
@@ -319,17 +318,43 @@ Not in scope for this spec.
 
 ---
 
-## API & Data Constraints
+## Data Sources
 
-- **BallDontLie (BDL):** Game schedules, scores, history. Free tier, ~5 req/min. Supports seasons back to at least 2018-19. Rate limit strategy: cache all responses locally as JSON, only re-fetch on cache miss. At 5 req/min with 20-sec delays, one full season (~1,230 games) takes ~4 hours.
-- **The Odds API:** Historical closing lines. $30/month plan, 20K credits. Historical endpoint provides closing line snapshots (NOT opening lines). Need to verify how far back historical data goes — this determines how many seasons we can test. Budget estimate: ~170 unique game dates per season × 30 credits each = ~5,100 credits/season. 20K credits supports ~3-4 seasons per month. Plan: collect one season per week, cache locally.
+### Historical Closing Lines (FREE — No Odds API Needed)
+
+Research identified free datasets that cover 17+ seasons of NBA closing lines, eliminating the need for Odds API credits for historical data:
+
+**Primary: Kaggle "NBA Betting Data" (cviaxmiwnptr)**
+- Coverage: 2007-08 through 2024-25 (17+ seasons, actively maintained)
+- Data: closing spreads, totals, moneylines, quarter scores, final scores
+- Source: SBRO closing lines (2007-2023) + ESPN (2023+)
+- Format: CSV, free download
+- Caveat: moneylines missing from ESPN portion (Jan 2023+); needs quality validation
+
+**Supplement: GitHub sportsbookreview-scraper (pre-scraped archive)**
+- Coverage: 2011-12 through 2021-22 (11 seasons, 13,903 records)
+- Data: BOTH opening AND closing spreads/totals + moneylines
+- Format: JSON
+- Value: cross-reference Kaggle data quality; opening lines enable CLV analysis on historical data
+
+**Recent: Kaggle MGM Grand Dataset**
+- Coverage: 2021-22 through 2025-26 (through Feb 2026 ASB)
+- Data: confirmed BetMGM closing lines + public betting percentages
+- Value: fills the most recent seasons with explicit closing-line labels
+
+**Combined coverage: 2007-2025 (~22,000+ regular season games across 18 seasons).** This dramatically exceeds the 3-5 seasons we originally planned for, making validation much more powerful.
+
+### APIs (Live Data Only)
+
+- **BallDontLie (BDL):** Game schedules, scores, tip times. Free tier, ~5 req/min. Used for schedule context computation (B2B flags, travel distances, rest days). Rate limit strategy: cache responses locally, re-fetch only on miss.
+- **The Odds API:** Retained for LIVE/current season closing lines only (nightly grading). Not needed for historical backtest. $30/month plan sufficient for live use.
 - **SportsGameOdds (SGO):** Used by nightly script for live grading. Stays as-is.
 
-**Critical dependency:** The number of seasons with BOTH game data AND closing line data determines the power of our validation. Minimum viable: 4 seasons (allows 3 training + 1 test). Target: 6+ seasons.
+### Data Strategy
 
-**If Odds API history is insufficient:** Consider supplementing with free historical closing line datasets (covers.com archives, Kaggle NBA betting datasets) if available and reliable.
-
-**Missing line data:** Games without closing line data from any bookmaker are excluded from ATS/O/U analysis but still included in schedule context computation (so downstream games' rest/B2B calculations remain correct).
+1. **Historical (one-time):** Download Kaggle + GitHub datasets. Merge with BDL game data for schedule context. Validate line data quality (spot-check against known results). This is a one-shot effort — no recurring API costs.
+2. **Current season (ongoing):** BDL for game data + Odds API or SGO for closing lines. Nightly grading pipeline.
+3. **Missing line data:** Games without closing line data from any source are excluded from ATS/O/U analysis but included in schedule context (so downstream B2B/rest calculations remain correct).
 
 ### Implementation Language
 
