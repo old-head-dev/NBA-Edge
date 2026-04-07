@@ -182,7 +182,7 @@ Teams actively tanking (resting starters, playing developmental lineups) create 
 
 **Requirement: Every regular season game, not just pre-filtered "fatigued" games.**
 
-For each season (target: 18 seasons, 2007-2025):
+For each season (target: 6 seasons — 2018-19, 2021-22 through 2024-25; excludes 2019-20 COVID bubble and 2020-21 shortened season):
 
 1. **Load game data and closing lines from free datasets**
    - Primary source: Kaggle "NBA Betting Data" CSV (2007-2025) — contains dates, teams, scores, closing spreads, closing totals, moneylines
@@ -348,7 +348,7 @@ Research identified free datasets that cover 17+ seasons of NBA closing lines, e
 - Data: confirmed BetMGM closing lines + public betting percentages
 - Value: fills the most recent seasons with explicit closing-line labels
 
-**Combined coverage: 2007-2025 (~22,000+ regular season games across 18 seasons).** This dramatically exceeds the 3-5 seasons we originally planned for, making validation much more powerful.
+**Combined coverage: 2007-2025 (~22,000+ regular season games across 18 seasons).** We use a subset: 6 seasons of modern-era data (2018-19, 2021-22 through 2024-25), excluding 2019-20 (COVID bubble — no travel) and 2020-21 (shortened season, abnormal scheduling). Older data is available but the game has changed too much (training, recovery science, pace of play) for 2007-era data to be relevant. ~7,400 regular season games across 6 clean seasons.
 
 ### APIs (Live/Current Season Only)
 
