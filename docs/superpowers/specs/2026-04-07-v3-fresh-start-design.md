@@ -182,13 +182,22 @@ Teams actively tanking (resting starters, playing developmental lineups) create 
 
 **Requirement: Every regular season game, not just pre-filtered "fatigued" games.**
 
-For each season (target: 5+ seasons, as many as APIs support):
+For each season (target: 18 seasons, 2007-2025):
 
-1. **Fetch all regular season games** (BDL API)
-   - Date, teams, scores, tip time (if available)
+1. **Load game data and closing lines from free datasets**
+   - Primary source: Kaggle "NBA Betting Data" CSV (2007-2025) — contains dates, teams, scores, closing spreads, closing totals, moneylines
+   - Supplement: GitHub sportsbookreview-scraper JSON (2011-2022) — has both opening AND closing lines for cross-reference and CLV analysis
+   - Recent supplement: Kaggle MGM Grand dataset (2021-2026) — confirmed BetMGM closing lines + public betting percentages
+   - BDL API used only for tip times (needed for sleep estimation) and to fill any gaps in game data. Cache all BDL responses locally.
    - ~1,230 games per season (82 games × 30 teams / 2)
 
-2. **Compute schedule context for each team in each game:**
+2. **Validate data quality before building on it**
+   - Spot-check at least 10 games per season against known results (ESPN, basketball-reference)
+   - Verify: final scores match, closing spreads are plausible, team names are consistent
+   - Cross-reference Kaggle vs GitHub datasets for overlapping seasons (2011-2022) — flag discrepancies
+   - Log any games with missing or suspicious line data
+
+3. **Compute schedule context for each team in each game:**
    - Days rest since previous game
    - B2B flag (0 days rest)
    - Traveled flag (different arena than previous game)
@@ -197,11 +206,7 @@ For each season (target: 5+ seasons, as many as APIs support):
    - Timezone change (eastbound/westbound, hours)
    - Schedule density: 3-in-4 flag, 4-in-6 flag
    - Altitude flag: playing at DEN/UTA without game there in past 4 days
-   - Current season win% at game time (for tanking filter)
-
-3. **Fetch closing spread and total** (Odds API historical)
-   - Home spread, closing total
-   - Average across available bookmakers
+   - Current season win% at game time (for tanking filter, post-ASB only)
 
 4. **Output:** `full_season_YYYY_YY.csv` — every game with all schedule tags, lines, and results
 
@@ -336,6 +341,7 @@ Research identified free datasets that cover 17+ seasons of NBA closing lines, e
 - Data: BOTH opening AND closing spreads/totals + moneylines
 - Format: JSON
 - Value: cross-reference Kaggle data quality; opening lines enable CLV analysis on historical data
+- **Security: Download ONLY the data file (`data/nba_archive_10Y.json`). Do NOT clone the repo, install its dependencies, or run its Python scraper code (`cli.py`). We need the pre-scraped data, not the scraper tool.**
 
 **Recent: Kaggle MGM Grand Dataset**
 - Coverage: 2021-22 through 2025-26 (through Feb 2026 ASB)
@@ -344,17 +350,18 @@ Research identified free datasets that cover 17+ seasons of NBA closing lines, e
 
 **Combined coverage: 2007-2025 (~22,000+ regular season games across 18 seasons).** This dramatically exceeds the 3-5 seasons we originally planned for, making validation much more powerful.
 
-### APIs (Live Data Only)
+### APIs (Live/Current Season Only)
 
-- **BallDontLie (BDL):** Game schedules, scores, tip times. Free tier, ~5 req/min. Used for schedule context computation (B2B flags, travel distances, rest days). Rate limit strategy: cache responses locally, re-fetch only on miss.
-- **The Odds API:** Retained for LIVE/current season closing lines only (nightly grading). Not needed for historical backtest. $30/month plan sufficient for live use.
+- **BallDontLie (BDL):** Tip times and gap-fill for game data not in the free datasets. Free tier, ~5 req/min. Cache all responses locally, re-fetch only on miss.
+- **The Odds API:** Retained ONLY for live/current season closing lines (nightly grading). NOT used for historical backtest — free datasets cover that. $30/month plan sufficient for live use. Credits preserved for MLB model.
 - **SportsGameOdds (SGO):** Used by nightly script for live grading. Stays as-is.
 
 ### Data Strategy
 
-1. **Historical (one-time):** Download Kaggle + GitHub datasets. Merge with BDL game data for schedule context. Validate line data quality (spot-check against known results). This is a one-shot effort — no recurring API costs.
-2. **Current season (ongoing):** BDL for game data + Odds API or SGO for closing lines. Nightly grading pipeline.
+1. **Historical (one-time, free):** Download Kaggle CSV + GitHub JSON data file. Merge and cross-reference for quality. Supplement with BDL for tip times only. Validate via spot-checks against known results. Zero recurring API cost.
+2. **Current season (ongoing):** Odds API or SGO for closing lines (nightly grading). BDL for tip times if needed. Existing $30/month plan covers this.
 3. **Missing line data:** Games without closing line data from any source are excluded from ATS/O/U analysis but included in schedule context (so downstream B2B/rest calculations remain correct).
+4. **Data integrity:** All downloaded datasets are plain data files (CSV, JSON) loaded with standard Python parsers (pandas, json module). No third-party code is executed. Spot-check validation is mandatory before any analysis runs on the data.
 
 ### Implementation Language
 
