@@ -1,0 +1,5 @@
+data/
+v3/data/raw/
+v3/data/processed/
+__pycache__/
+*.pyc
