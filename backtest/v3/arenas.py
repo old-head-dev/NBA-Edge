@@ -63,6 +63,7 @@ _TEAM_ALIASES: dict[str, str] = {
     "WSH": "WAS",
     "BRK": "BKN",
     "UTH": "UTA",
+    "UTAH": "UTA",
 }
 
 
