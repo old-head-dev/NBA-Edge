@@ -109,7 +109,7 @@ def compute_ats_result(home_score, away_score, home_spread) -> str | None:
         "push"  — exactly on the number
         None    — if home_spread is None
     """
-    if home_spread is None:
+    if home_score is None or away_score is None or home_spread is None:
         return None
     adjusted = home_score + home_spread
     if adjusted > away_score:
@@ -134,7 +134,7 @@ def compute_ou_result(home_score, away_score, total) -> str | None:
         "push"  — combined score equals total exactly
         None    — if total is None
     """
-    if total is None:
+    if home_score is None or away_score is None or total is None:
         return None
     combined = home_score + away_score
     if combined > total:
@@ -224,8 +224,10 @@ def load_kaggle(filename: str = "nba_2008-2025.csv") -> pd.DataFrame:
         whos = row["whos_favored"]
         if whos == "home":
             return -spread
-        else:  # "away"
+        elif whos == "away":
             return +spread
+        else:
+            return None
 
     df["home_spread"] = df.apply(_to_home_spread, axis=1)
 
