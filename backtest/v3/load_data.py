@@ -231,9 +231,9 @@ def load_kaggle(filename: str = "nba_2008-2025.csv") -> pd.DataFrame:
 
     df["home_spread"] = df.apply(_to_home_spread, axis=1)
 
-    # Normalize team abbreviations (lowercase kaggle → canonical)
-    df["home_team"] = df["home"].apply(lambda t: normalize_team(str(t)))
-    df["away_team"] = df["away"].apply(lambda t: normalize_team(str(t)))
+    # Normalize team abbreviations (lowercase kaggle → canonical 3-letter codes)
+    df["away"] = df["away"].apply(lambda t: normalize_team(str(t)))
+    df["home"] = df["home"].apply(lambda t: normalize_team(str(t)))
 
     # Compute ATS and OU results
     df["ats_result"] = df.apply(
@@ -292,8 +292,8 @@ def load_sbr(filename: str = "sbr_archive_10y.json") -> pd.DataFrame:
         # Fallback: try normalize_team (handles abbreviations)
         return normalize_team(name_str)
 
-    raw["home_team"] = raw["home_team"].apply(_map_team)
-    raw["away_team"] = raw["away_team"].apply(_map_team)
+    raw["home"] = raw["home_team"].apply(_map_team)
+    raw["away"] = raw["away_team"].apply(_map_team)
 
     # Convert final scores to int
     raw["home_score"] = raw["home_final"].apply(_safe_int)

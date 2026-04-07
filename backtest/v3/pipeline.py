@@ -115,14 +115,10 @@ def main():
     print("=" * 72)
     # =========================================================================
 
-    # schedule.compute_schedule_context expects 'away' / 'home' columns
-    # (not 'away_team' / 'home_team' as produced by load_kaggle).
-    # Rename for the schedule engine; the enriched output will use 'away'/'home'.
     enriched_frames = []
 
     for season in sorted(VALID_SEASONS):
         season_df = all_games[all_games["season"] == season].copy()
-        season_df = season_df.rename(columns={"away_team": "away", "home_team": "home"})
         season_df = season_df.sort_values("date").reset_index(drop=True)
 
         print(f"  Processing {season}: {len(season_df)} games...", end=" ")

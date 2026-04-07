@@ -341,7 +341,10 @@ def run_signal_analysis(all_games: pd.DataFrame, output_path: str) -> str:
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(report)
 
-    # Also print to stdout
-    print(report, end="")
+    # Also print to stdout (handle Windows encoding)
+    try:
+        print(report, end="")
+    except UnicodeEncodeError:
+        print(report.encode("ascii", errors="replace").decode("ascii"), end="")
 
     return output_path
