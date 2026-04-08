@@ -637,9 +637,9 @@ async function loadSeasonRecord() {
     for (const g of games) {
       // Only count S2 signals (the validated bet signal)
       if (g.signal !== 'S2') continue;
-      if (g.result === 'win' || g.result === 'W') wins++;
-      else if (g.result === 'loss' || g.result === 'L') losses++;
-      else if (g.result === 'push' || g.result === 'P') pushes++;
+      if (g.signal_result === 'WIN') wins++;
+      else if (g.signal_result === 'LOSS') losses++;
+      else if (g.signal_result === 'PUSH') pushes++;
     }
     _seasonRecord = {wins, losses, pushes, total: wins + losses};
   } catch (e) {
