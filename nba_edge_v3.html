@@ -9,49 +9,195 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="NBA Edge">
 <style>
-/* Minimal dark theme — Task 2 will add full CSS */
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap');
 :root {
-  --bg:#080b10;--surface:#0e1219;--surface2:#141a23;--border:#1e2733;
-  --text:#dce8f5;--muted:#5a7090;--accent:#f0c040;--accent2:#40a0f0;
-  --green:#30d080;--yellow:#f0c040;--orange:#f07030;--red:#e03050;
+  --bg:#080b10;--surface:#0e1219;--surface2:#141a23;--border:#1e2733;--border2:#2a3545;
+  --accent:#f0c040;--accent2:#40a0f0;--text:#dce8f5;--muted:#5a7090;
+  --green:#30d080;--yellow:#f0c040;--orange:#f07030;--red:#e03050;--critical:#ff1060;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;
-  min-height:100vh;padding:24px;line-height:1.5;}
-h1{font-size:24px;font-weight:800;letter-spacing:2px;margin-bottom:4px;}
-h1 span{color:var(--accent2);}
-.version{font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:20px;}
-#status{font-size:12px;color:var(--muted);margin-bottom:16px;font-family:monospace;}
-#games-container{max-width:900px;}
-.game-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;
-  padding:16px;margin-bottom:12px;}
-.game-matchup{font-size:18px;font-weight:700;margin-bottom:8px;}
-.game-detail{font-size:13px;color:var(--muted);margin-bottom:4px;font-family:monospace;}
-.signal{padding:10px 14px;border-radius:6px;margin-top:8px;font-family:monospace;font-size:13px;}
-.signal-primary{background:rgba(48,208,128,0.1);border:1px solid rgba(48,208,128,0.4);color:var(--green);}
-.signal-monitoring{background:rgba(240,192,64,0.08);border:1px solid rgba(240,192,64,0.3);color:var(--yellow);}
-.no-signal{font-size:12px;color:var(--muted);font-family:monospace;margin-top:6px;}
-.date-nav{display:flex;align-items:center;gap:10px;margin-bottom:20px;}
-.date-nav input[type="date"]{background:var(--surface);border:1px solid var(--border);color:var(--text);
-  padding:6px 10px;border-radius:4px;font-family:monospace;font-size:13px;}
-.date-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);
-  padding:6px 12px;border-radius:4px;font-family:monospace;font-size:13px;cursor:pointer;}
+body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;line-height:1.5;
+  background-image:radial-gradient(ellipse 80% 50% at 50% -20%,rgba(64,160,240,0.08) 0%,transparent 60%),
+  repeating-linear-gradient(0deg,transparent,transparent 60px,rgba(30,39,51,0.3) 60px,rgba(30,39,51,0.3) 61px),
+  repeating-linear-gradient(90deg,transparent,transparent 60px,rgba(30,39,51,0.3) 60px,rgba(30,39,51,0.3) 61px);}
+
+/* HEADER */
+.header{padding:20px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:20px;
+  background:rgba(8,11,16,0.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);position:sticky;top:0;z-index:100;}
+.logo{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:28px;letter-spacing:3px;
+  text-transform:uppercase;color:var(--accent);line-height:1;text-decoration:none;}
+.logo span{color:var(--accent2);}
+.header-meta{display:flex;flex-direction:column;gap:2px;}
+.version-badge{font-family:'DM Mono',monospace;font-size:10px;color:var(--accent2);letter-spacing:1px;
+  background:rgba(64,160,240,0.1);border:1px solid rgba(64,160,240,0.25);border-radius:3px;padding:2px 6px;display:inline-block;}
+.api-status{font-family:'DM Mono',monospace;font-size:10px;display:flex;align-items:center;gap:6px;margin-top:3px;}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);transition:background 0.3s;}
+.status-dot.live{background:var(--green);box-shadow:0 0 6px var(--green);}
+.status-dot.error{background:var(--red);}
+.header-date{margin-left:auto;font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:600;letter-spacing:1px;color:var(--muted);}
+.refresh-btn{background:transparent;border:1px solid var(--border2);color:var(--accent2);font-family:'DM Mono',monospace;
+  font-size:11px;padding:7px 14px;border-radius:4px;cursor:pointer;letter-spacing:1px;transition:all 0.2s;}
+.refresh-btn:hover{background:var(--accent2);color:var(--bg);border-color:var(--accent2);}
+.refresh-btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+/* MAIN */
+.main{padding:28px 32px;max-width:1000px;margin:0 auto;}
+
+/* DATE NAV */
+.date-nav{display:flex;align-items:center;gap:12px;margin-bottom:24px;}
+.date-nav input[type="date"]{background:var(--surface);border:1px solid var(--border2);color:var(--text);
+  padding:8px 14px;border-radius:6px;font-family:'DM Mono',monospace;font-size:13px;outline:none;cursor:pointer;}
+.date-nav input[type="date"]:focus{border-color:var(--accent);}
+.date-btn{background:var(--surface);border:1px solid var(--border2);color:var(--muted);padding:8px 14px;
+  border-radius:6px;font-family:'DM Mono',monospace;font-size:13px;cursor:pointer;transition:all 0.2s;}
 .date-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ODDS API CONTROLS */
+.odds-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:20px;
+  font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.5px;}
+.odds-controls input[type="password"]{background:var(--surface2);border:1px solid var(--border);border-radius:4px;
+  padding:4px 8px;color:var(--text);font-family:'DM Mono',monospace;font-size:10px;width:180px;outline:none;}
+.odds-controls input[type="password"]:focus{border-color:var(--accent);}
+.odds-btn{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 8px;
+  color:var(--accent);cursor:pointer;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.5px;transition:all 0.2s;}
+.odds-btn:hover{border-color:var(--accent);background:rgba(240,192,64,0.08);}
+.odds-btn.refresh-odds{border-color:rgba(240,192,64,0.3);}
+.odds-status{font-size:9px;color:var(--muted);}
+
+/* SIGNAL SUMMARY PANEL */
+.signal-summary{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:24px;
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.summary-stat{font-family:'DM Mono',monospace;font-size:13px;color:var(--text);}
+.summary-stat .label{font-size:10px;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:2px;}
+.summary-stat .value{font-weight:500;}
+.summary-stat .value.green{color:var(--green);}
+.summary-stat .value.muted{color:var(--muted);}
+.summary-divider{width:1px;height:32px;background:var(--border);flex-shrink:0;}
+
+/* SIGNAL CARDS */
+.signal-card{background:var(--surface);border-radius:10px;overflow:hidden;margin-bottom:16px;
+  border:2px solid transparent;animation:fadeUp 0.4s ease both;}
+.signal-card.s2{border-color:rgba(48,208,128,0.5);}
+.signal-card.b2{border-color:rgba(240,192,64,0.25);}
+.signal-card-header{padding:14px 18px 10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.signal-pill{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:0.5px;
+  padding:4px 10px;border-radius:4px;display:inline-block;}
+.signal-pill.s2{background:rgba(48,208,128,0.12);color:var(--green);border:1px solid rgba(48,208,128,0.35);}
+.signal-pill.b2{background:rgba(240,192,64,0.08);color:var(--muted);border:1px solid rgba(240,192,64,0.2);}
+.signal-matchup{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:28px;letter-spacing:1px;color:var(--text);}
+.signal-tip{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:0.5px;margin-left:auto;}
+.signal-card-body{padding:6px 18px 14px;}
+.signal-context{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);line-height:1.7;}
+.signal-context .highlight{color:var(--text);}
+.signal-spread{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px;color:var(--accent);
+  margin-top:8px;display:inline-block;}
+
+/* NON-SIGNAL GAME ROWS */
+.game-row{display:flex;align-items:center;gap:16px;padding:10px 16px;background:var(--surface);
+  border:1px solid var(--border);border-radius:8px;margin-bottom:6px;transition:border-color 0.2s;}
+.game-row:hover{border-color:var(--border2);}
+.game-row-matchup{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px;letter-spacing:0.5px;
+  color:var(--text);min-width:130px;}
+.game-row-time{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:0.5px;min-width:85px;}
+.game-row-rest{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);flex:1;}
+.game-row-rest .b2b{color:var(--orange);}
+
+/* SECTION HEADERS */
+.section-label{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:3px;
+  text-transform:uppercase;color:var(--muted);margin-bottom:12px;margin-top:28px;}
+.section-label:first-child{margin-top:0;}
+
+/* SIGNAL REFERENCE */
+.reference-section{max-width:1000px;margin:40px auto 0;padding:0 32px;}
+.reference-box{border:1px solid var(--border);border-radius:10px;padding:22px 26px;background:var(--surface);}
+.reference-title{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;
+  color:var(--accent);margin-bottom:16px;}
+.reference-signal{font-family:'DM Mono',monospace;font-size:12px;color:var(--text);line-height:1.8;margin-bottom:16px;}
+.reference-signal .signal-name{font-weight:700;margin-bottom:4px;}
+.reference-signal .signal-name.green{color:var(--green);}
+.reference-signal .signal-name.amber{color:var(--yellow);}
+.reference-signal ul{margin:0 0 0 16px;padding:0;list-style:disc;color:var(--muted);}
+.reference-signal ul li{margin-bottom:2px;}
+.reference-signal .stat{color:var(--green);}
+.reference-signal .muted-stat{color:var(--muted);}
+
+/* LOADING STATES */
+.state-display{text-align:center;padding:60px 20px;color:var(--muted);font-family:'DM Mono',monospace;font-size:13px;}
+.spinner{width:32px;height:32px;border:2px solid var(--border2);border-top-color:var(--accent2);
+  border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+
+/* FOOTER */
+footer{margin-top:40px;padding:20px 32px;border-top:1px solid var(--border);display:flex;justify-content:space-between;
+  font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;}
+
+/* RESPONSIVE */
+@media (max-width: 600px) {
+  .header{flex-wrap:wrap;gap:10px;padding:16px;}
+  .header-date{margin-left:0;font-size:16px;}
+  .main{padding:16px;}
+  .date-nav{flex-wrap:wrap;}
+  .date-nav input[type="date"]{flex:1;min-width:0;}
+  .signal-summary{flex-direction:column;align-items:flex-start;gap:10px;}
+  .summary-divider{display:none;}
+  .signal-card-header{flex-wrap:wrap;}
+  .signal-matchup{font-size:24px;}
+  .signal-tip{margin-left:0;}
+  .game-row{flex-wrap:wrap;gap:8px;}
+  .game-row-matchup{min-width:100%;}
+  .odds-controls{flex-wrap:wrap;}
+  .odds-controls input[type="password"]{width:140px;}
+  .reference-section{padding:0 16px;}
+  footer{flex-direction:column;gap:6px;padding:16px;}
+}
 </style>
 </head>
 <body>
 
-<h1>NBA<span>EDGE</span> V3</h1>
-<div class="version">V3 SIGNAL ENGINE — SCHEDULE-BASED</div>
+<header class="header">
+  <a class="logo" href="https://old-head-dev.github.io/NBA-Edge/" style="text-decoration:none;">NBA<span>EDGE</span></a>
+  <div class="header-meta">
+    <span class="version-badge">V3</span>
+    <div class="api-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text" style="font-size:10px;color:var(--muted);">Connecting...</span>
+    </div>
+  </div>
+  <div class="header-date" id="header-date"></div>
+  <button class="refresh-btn" id="refresh-btn" onclick="loadGames()">REFRESH</button>
+</header>
 
-<div class="date-nav">
-  <button class="date-btn" onclick="shiftDate(-1)">PREV</button>
-  <input type="date" id="date-picker" onchange="loadGames()">
-  <button class="date-btn" onclick="shiftDate(1)">NEXT</button>
+<div class="main">
+
+  <div class="date-nav">
+    <button class="date-btn" onclick="shiftDate(-1)">PREV</button>
+    <input type="date" id="date-picker" onchange="loadGames()">
+    <button class="date-btn" onclick="shiftDate(1)">NEXT</button>
+  </div>
+
+  <div class="odds-controls">
+    <label for="odds-key-input">ODDS API KEY:</label>
+    <input type="password" id="odds-key-input" placeholder="paste key">
+    <button class="odds-btn" onclick="saveOddsKey()">SAVE</button>
+    <button class="odds-btn refresh-odds" id="refresh-odds-btn" onclick="refreshOdds()">ODDS</button>
+    <span class="odds-status" id="odds-status"></span>
+  </div>
+
+  <div id="signal-summary"></div>
+  <div id="games-container">
+    <div class="state-display"><div class="spinner"></div>Fetching games...</div>
+  </div>
+
 </div>
 
-<div id="status">Initializing...</div>
-<div id="games-container"></div>
+<div class="reference-section" id="signal-reference"></div>
+
+<footer>
+  <span>NBA EDGE V3</span>
+  <span>SCHEDULE-BASED SIGNALS</span>
+  <span>DATA: BALLDONTLIE.IO</span>
+</footer>
 
 <script>
 // =====================================================================
@@ -358,54 +504,343 @@ async function fetchHistory(teamIds, dateStr) {
 }
 
 // =====================================================================
-// RENDERING (minimal — Task 2 will replace)
+// ODDS API
 // =====================================================================
 
-function renderGames(enrichedGames) {
+const ODDS_API_BASE = 'https://api.the-odds-api.com/v4/sports/basketball_nba/odds';
+
+// Reverse lookup: full team name -> abbreviation
+const ODDS_TEAM_MAP = {};
+for (const [abbr, full] of Object.entries(TEAM_NAMES)) {
+  ODDS_TEAM_MAP[full] = abbr;
+}
+
+function saveOddsKey() {
+  const key = document.getElementById('odds-key-input').value.trim();
+  if (key) {
+    localStorage.setItem('odds_api_key', key);
+    document.getElementById('odds-status').textContent = 'Saved';
+    document.getElementById('odds-status').style.color = 'var(--green)';
+  }
+}
+
+function getOddsKey() {
+  return localStorage.getItem('odds_api_key') || '';
+}
+
+async function fetchOdds() {
+  const key = getOddsKey();
+  if (!key) return null;
+  try {
+    const url = `${ODDS_API_BASE}?apiKey=${key}&regions=us&markets=spreads,totals&oddsFormat=american`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const remaining = resp.headers.get('x-requests-remaining');
+      console.warn(`Odds API error: ${resp.status}. Remaining: ${remaining}`);
+      return null;
+    }
+    const remaining = resp.headers.get('x-requests-remaining');
+    const used = resp.headers.get('x-requests-used');
+    console.log(`Odds API: ${used} used, ${remaining} remaining`);
+    return await resp.json();
+  } catch (e) {
+    console.warn('Odds API fetch failed:', e.message);
+    return null;
+  }
+}
+
+function matchOddsToGames(enrichedGames, oddsData) {
+  if (!oddsData || !oddsData.length) return;
+
+  // Build lookup: home team abbr -> odds event
+  const oddsMap = {};
+  for (const event of oddsData) {
+    const homeAbbr = ODDS_TEAM_MAP[event.home_team];
+    if (homeAbbr) oddsMap[homeAbbr] = event;
+  }
+
+  for (const eg of enrichedGames) {
+    const oddsEvent = oddsMap[eg.game.home];
+    if (!oddsEvent || !oddsEvent.bookmakers || !oddsEvent.bookmakers.length) {
+      eg.game._odds = null;
+      continue;
+    }
+
+    // Average spread and total across all bookmakers
+    const spreads = [];
+    const totals = [];
+    for (const bk of oddsEvent.bookmakers) {
+      for (const mkt of (bk.markets || [])) {
+        if (mkt.key === 'spreads') {
+          const homeOutcome = mkt.outcomes?.find(o => o.name === oddsEvent.home_team);
+          if (homeOutcome && homeOutcome.point !== undefined) spreads.push(homeOutcome.point);
+        } else if (mkt.key === 'totals') {
+          const overOutcome = mkt.outcomes?.find(o => o.name === 'Over');
+          if (overOutcome && overOutcome.point !== undefined) totals.push(overOutcome.point);
+        }
+      }
+    }
+
+    const avgSpread = spreads.length ? Math.round(spreads.reduce((a, b) => a + b, 0) / spreads.length * 2) / 2 : null;
+    const avgTotal = totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length * 2) / 2 : null;
+
+    eg.game._odds = {spread: avgSpread, total: avgTotal};
+  }
+}
+
+async function refreshOdds() {
+  const key = getOddsKey();
+  if (!key) {
+    document.getElementById('odds-status').textContent = 'No API key';
+    document.getElementById('odds-status').style.color = 'var(--orange)';
+    return;
+  }
+  const btn = document.getElementById('refresh-odds-btn');
+  btn.disabled = true;
+  btn.textContent = '...';
+  document.getElementById('odds-status').textContent = 'Fetching...';
+  document.getElementById('odds-status').style.color = 'var(--muted)';
+  try {
+    const oddsData = await fetchOdds();
+    if (!oddsData) throw new Error('No data returned');
+    const container = document.getElementById('games-container');
+    const enriched = container._lastEnriched;
+    if (!enriched) throw new Error('Load games first');
+    matchOddsToGames(enriched, oddsData);
+    const ts = new Date().toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'});
+    document.getElementById('odds-status').textContent = `Updated ${ts}`;
+    document.getElementById('odds-status').style.color = 'var(--green)';
+    // Re-render with odds data
+    renderAll(enriched);
+  } catch (e) {
+    document.getElementById('odds-status').textContent = `Error: ${e.message}`;
+    document.getElementById('odds-status').style.color = 'var(--orange)';
+  }
+  btn.disabled = false;
+  btn.textContent = 'ODDS';
+}
+
+// =====================================================================
+// SEASON RECORD
+// =====================================================================
+
+let _seasonRecord = {wins: 0, losses: 0, pushes: 0, total: 0};
+
+async function loadSeasonRecord() {
+  try {
+    const resp = await fetch('data/results_v3.json');
+    if (!resp.ok) throw new Error('Not found');
+    const data = await resp.json();
+    const games = data.games || [];
+    let wins = 0, losses = 0, pushes = 0;
+    for (const g of games) {
+      // Only count S2 signals (the validated bet signal)
+      if (g.signal !== 'S2') continue;
+      if (g.result === 'win' || g.result === 'W') wins++;
+      else if (g.result === 'loss' || g.result === 'L') losses++;
+      else if (g.result === 'push' || g.result === 'P') pushes++;
+    }
+    _seasonRecord = {wins, losses, pushes, total: wins + losses};
+  } catch (e) {
+    _seasonRecord = {wins: 0, losses: 0, pushes: 0, total: 0};
+  }
+}
+
+// =====================================================================
+// WILSON CI
+// =====================================================================
+
+function wilsonCI(wins, total, z = 1.96) {
+  if (total === 0) return {lo: 0, hi: 0};
+  const p = wins / total;
+  const denom = 1 + z * z / total;
+  const centre = (p + z * z / (2 * total)) / denom;
+  const spread = z * Math.sqrt((p * (1 - p) + z * z / (4 * total)) / total) / denom;
+  return {lo: Math.max(0, centre - spread), hi: Math.min(1, centre + spread)};
+}
+
+// =====================================================================
+// RENDERING
+// =====================================================================
+
+function renderSignalSummary(enrichedGames) {
+  const container = document.getElementById('signal-summary');
+  const signalCount = enrichedGames.filter(eg => eg.signals.length > 0).length;
+  const s2Count = enrichedGames.filter(eg => eg.signals.some(s => s.id === 'S2')).length;
+
+  // Season record
+  const sr = _seasonRecord;
+  let seasonStr = '';
+  if (sr.total > 0) {
+    const pct = (sr.wins / sr.total * 100).toFixed(1);
+    const ci = wilsonCI(sr.wins, sr.total);
+    seasonStr = `${sr.wins}W-${sr.losses}L`;
+    if (sr.pushes > 0) seasonStr += `-${sr.pushes}P`;
+    seasonStr += ` (${pct}%)`;
+    seasonStr += ` [${(ci.lo * 100).toFixed(1)}-${(ci.hi * 100).toFixed(1)}%]`;
+  } else {
+    seasonStr = 'No results yet';
+  }
+
+  container.innerHTML = `
+    <div class="signal-summary">
+      <div class="summary-stat">
+        <span class="label">TODAY</span>
+        <span class="value${s2Count > 0 ? ' green' : ''}">${s2Count} signal${s2Count !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-stat">
+        <span class="label">SEASON (S2)</span>
+        <span class="value${sr.total > 0 ? ' green' : ' muted'}">${seasonStr}</span>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-stat">
+        <span class="label">HISTORICAL (LOSO)</span>
+        <span class="value green">56.8% [50.8-62.6%]</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderSignalCard(eg) {
+  const {game, signals, homeCtx, awayCtx} = eg;
+  const tipTime = formatTipTime(game.datetime);
+
+  let html = '';
+  for (const sig of signals) {
+    const isS2 = sig.id === 'S2';
+    const cardClass = isS2 ? 's2' : 'b2';
+    const pillClass = isS2 ? 's2' : 'b2';
+    const pillLabel = isS2 ? 'S2 &mdash; BET AWAY' : 'B2 &mdash; MONITORING';
+
+    // Build spread display if odds available
+    let spreadHtml = '';
+    if (game._odds && game._odds.spread !== null) {
+      const sp = game._odds.spread;
+      const sign = sp > 0 ? '+' : '';
+      spreadHtml = `<div class="signal-spread">${game.home} ${sign}${sp}</div>`;
+    }
+
+    // Travel context
+    const travelLine = sig.detail;
+    const awayRestStr = awayCtx.daysRest !== null ? `${awayCtx.daysRest}d rest` : 'rest unknown';
+    const awayB2B = awayCtx.isB2B ? ', B2B' : '';
+
+    html += `
+      <div class="signal-card ${cardClass}">
+        <div class="signal-card-header">
+          <span class="signal-pill ${pillClass}">${pillLabel}</span>
+          <span class="signal-matchup">${game.away} @ ${game.home}</span>
+          <span class="signal-tip">${tipTime}</span>
+        </div>
+        <div class="signal-card-body">
+          <div class="signal-context">
+            ${travelLine}<br>
+            Away (<span class="highlight">${game.away}</span>): ${awayRestStr}${awayB2B}
+          </div>
+          ${spreadHtml}
+        </div>
+      </div>
+    `;
+  }
+  return html;
+}
+
+function renderGameRow(eg) {
+  const {game, homeCtx, awayCtx} = eg;
+  const tipTime = formatTipTime(game.datetime);
+
+  const homeRestStr = homeCtx.daysRest !== null ? `${homeCtx.daysRest}d` : '?';
+  const awayRestStr = awayCtx.daysRest !== null ? `${awayCtx.daysRest}d` : '?';
+  const homeB2B = homeCtx.isB2B ? ' <span class="b2b">B2B</span>' : '';
+  const awayB2B = awayCtx.isB2B ? ' <span class="b2b">B2B</span>' : '';
+
+  return `
+    <div class="game-row">
+      <span class="game-row-matchup">${game.away} @ ${game.home}</span>
+      <span class="game-row-time">${tipTime}</span>
+      <span class="game-row-rest">${game.away} ${awayRestStr}${awayB2B} / ${game.home} ${homeRestStr}${homeB2B}</span>
+    </div>
+  `;
+}
+
+function renderSignalReference() {
+  const refContainer = document.getElementById('signal-reference');
+  refContainer.innerHTML = `
+    <div class="reference-box">
+      <div class="reference-title">SIGNAL RULES REFERENCE</div>
+
+      <div class="reference-signal">
+        <div class="signal-name green">S2 &mdash; BET AWAY ATS (Primary)</div>
+        <ul>
+          <li>Home team on back-to-back <strong>AND</strong> traveled (was away yesterday)</li>
+          <li>Away team is <strong>NOT</strong> on a back-to-back</li>
+          <li>Action: Bet away team against the spread</li>
+          <li>Historical (LOSO): <span class="stat">56.8% [50.8-62.6%]</span> combined</li>
+          <li>Per-season:
+            <span class="stat">2021: 57.1%</span> (56/98) |
+            <span class="stat">2022: 59.1%</span> (55/93) |
+            <span class="stat">2023: 55.0%</span> (55/100) |
+            <span class="stat">2024: 55.9%</span> (52/93)
+          </li>
+        </ul>
+      </div>
+
+      <div class="reference-signal">
+        <div class="signal-name amber">B2 &mdash; TRACKING: HOME ATS (Monitoring)</div>
+        <ul>
+          <li>Home team on back-to-back AND traveled</li>
+          <li>Away team is <strong>ALSO</strong> on a back-to-back</li>
+          <li>Not yet validated for betting &mdash; collecting live data</li>
+          <li>Hypothesis: home travel disadvantage still applies, but both-B2B muddies the signal</li>
+        </ul>
+      </div>
+    </div>
+  `;
+}
+
+function renderAll(enrichedGames) {
   const container = document.getElementById('games-container');
 
+  // Store enriched data for odds refresh
+  container._lastEnriched = enrichedGames;
+
   if (enrichedGames.length === 0) {
-    container.innerHTML = '<div style="color:var(--muted);font-family:monospace;padding:20px;">No games scheduled for this date.</div>';
+    container.innerHTML = '<div class="state-display">No games scheduled for this date.</div>';
+    renderSignalSummary([]);
+    renderSignalReference();
     return;
   }
 
+  // Separate signal and non-signal games
+  const signalGames = enrichedGames.filter(eg => eg.signals.length > 0);
+  const nonSignalGames = enrichedGames.filter(eg => eg.signals.length === 0);
+
+  // Render signal summary
+  renderSignalSummary(enrichedGames);
+
   let html = '';
-  for (const eg of enrichedGames) {
-    const {game, signals, homeCtx, awayCtx} = eg;
-    const tipTime = formatTipTime(game.datetime);
-    const awayName = TEAM_NAMES[game.away] || game.away;
-    const homeName = TEAM_NAMES[game.home] || game.home;
 
-    // Schedule context summary
-    const homeRest = homeCtx.daysRest !== null ? `${homeCtx.daysRest}d rest` : 'rest unknown';
-    const awayRest = awayCtx.daysRest !== null ? `${awayCtx.daysRest}d rest` : 'rest unknown';
-    const homeB2B = homeCtx.isB2B ? ' [B2B]' : '';
-    const awayB2B = awayCtx.isB2B ? ' [B2B]' : '';
-    const homeTraveled = homeCtx.traveled ? ` traveled ${homeCtx.travelDist}mi from ${homeCtx.prevArena}` : '';
-    const awayTraveled = awayCtx.traveled ? ` traveled ${awayCtx.travelDist}mi from ${awayCtx.prevArena}` : '';
-
-    html += `<div class="game-card">`;
-    html += `<div class="game-matchup">${game.away} @ ${game.home}</div>`;
-    html += `<div class="game-detail">${tipTime} &mdash; ${awayName} at ${homeName}</div>`;
-    html += `<div class="game-detail">AWAY: ${awayRest}${awayB2B}${awayTraveled}</div>`;
-    html += `<div class="game-detail">HOME: ${homeRest}${homeB2B}${homeTraveled}</div>`;
-
-    if (signals.length > 0) {
-      for (const sig of signals) {
-        const cls = sig.type === 'primary' ? 'signal-primary' : 'signal-monitoring';
-        html += `<div class="signal ${cls}">`;
-        html += `<strong>[${sig.id}]</strong> ${sig.label}<br>`;
-        html += `<span style="font-size:11px;">${sig.detail}</span>`;
-        html += `</div>`;
-      }
-    } else {
-      html += `<div class="no-signal">No signals</div>`;
+  // Signal cards first
+  if (signalGames.length > 0) {
+    html += '<div class="section-label">SIGNALS</div>';
+    for (const eg of signalGames) {
+      html += renderSignalCard(eg);
     }
+  }
 
-    html += `</div>`;
+  // Non-signal games
+  if (nonSignalGames.length > 0) {
+    html += `<div class="section-label">${signalGames.length > 0 ? 'OTHER' : 'ALL'} GAMES</div>`;
+    for (const eg of nonSignalGames) {
+      html += renderGameRow(eg);
+    }
   }
 
   container.innerHTML = html;
+
+  // Signal reference at bottom
+  renderSignalReference();
 }
 
 // =====================================================================
@@ -416,11 +851,18 @@ async function loadGames() {
   const dateStr = document.getElementById('date-picker').value;
   if (!dateStr) return;
 
-  const status = document.getElementById('status');
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  const headerDate = document.getElementById('header-date');
   const container = document.getElementById('games-container');
+  const refreshBtn = document.getElementById('refresh-btn');
 
-  status.textContent = `Fetching games for ${dateStr}...`;
-  container.innerHTML = '';
+  statusDot.className = 'status-dot';
+  statusText.textContent = 'Fetching...';
+  statusText.style.color = 'var(--muted)';
+  headerDate.textContent = formatDateDisplay(dateStr);
+  container.innerHTML = '<div class="state-display"><div class="spinner"></div>Fetching games...</div>';
+  refreshBtn.disabled = true;
 
   try {
     // 1. Fetch today's games
@@ -428,12 +870,17 @@ async function loadGames() {
     const games = gamesResp.data || [];
 
     if (games.length === 0) {
-      status.textContent = `${formatDateDisplay(dateStr)} — No games scheduled.`;
-      container.innerHTML = '<div style="color:var(--muted);font-family:monospace;padding:20px;">No games scheduled for this date.</div>';
+      statusDot.className = 'status-dot live';
+      statusText.textContent = 'No games';
+      statusText.style.color = 'var(--muted)';
+      container.innerHTML = '<div class="state-display">No games scheduled for this date.</div>';
+      renderSignalSummary([]);
+      renderSignalReference();
+      refreshBtn.disabled = false;
       return;
     }
 
-    status.textContent = `${formatDateDisplay(dateStr)} — ${games.length} game${games.length !== 1 ? 's' : ''} found. Fetching history...`;
+    statusText.textContent = `${games.length} games, fetching history...`;
 
     // 2. Collect all team IDs playing today
     const teamIds = [...new Set([
@@ -458,7 +905,7 @@ async function loadGames() {
       return {game: {home, away, date: game.date, datetime: game.datetime}, signals, homeCtx, awayCtx};
     });
 
-    // Sort by tip-off time (earliest first)
+    // Sort: signal games first (S2 before B2), then by tip-off time
     enriched.sort((a, b) => {
       const aT = a.game.datetime ? new Date(a.game.datetime).getTime() : Infinity;
       const bT = b.game.datetime ? new Date(b.game.datetime).getTime() : Infinity;
@@ -474,15 +921,21 @@ async function loadGames() {
       }
     }
 
-    // 7. Render to page
-    status.textContent = `${formatDateDisplay(dateStr)} — ${games.length} games | ${recentGames.length} history records | ${signalGames.length} signal${signalGames.length !== 1 ? 's' : ''}`;
-    renderGames(enriched);
+    // 7. Update status and render
+    statusDot.className = 'status-dot live';
+    const s2Count = enriched.filter(eg => eg.signals.some(s => s.id === 'S2')).length;
+    statusText.textContent = `${games.length} games | ${s2Count} signal${s2Count !== 1 ? 's' : ''}`;
+    statusText.style.color = 'var(--green)';
+    renderAll(enriched);
 
   } catch (err) {
-    status.textContent = `Error: ${err.message}`;
-    container.innerHTML = `<div style="color:var(--red);font-family:monospace;padding:20px;">Failed to load: ${err.message}</div>`;
+    statusDot.className = 'status-dot error';
+    statusText.textContent = `Error: ${err.message}`;
+    statusText.style.color = 'var(--red)';
+    container.innerHTML = `<div class="state-display" style="color:var(--red);">Failed to load: ${err.message}</div>`;
     console.error('[V3] Load error:', err);
   }
+  refreshBtn.disabled = false;
 }
 
 function shiftDate(days) {
@@ -493,10 +946,18 @@ function shiftDate(days) {
 }
 
 // ── Initialize ──
-(function init() {
+(async function init() {
   const picker = document.getElementById('date-picker');
   picker.value = todayET();
-  loadGames();
+
+  // Populate saved Odds API key
+  const savedKey = getOddsKey();
+  if (savedKey) {
+    document.getElementById('odds-key-input').value = savedKey;
+  }
+
+  // Load season record in parallel with games
+  await Promise.all([loadSeasonRecord(), loadGames()]);
 })();
 </script>
 </body>
