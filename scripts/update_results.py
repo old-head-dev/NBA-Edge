@@ -163,7 +163,9 @@ def detect_v3_signals(home, away, game_date, team_history):
     return signals
 
 def grade_signal(signal_type, ats_result):
-    """Grade a V3 signal result."""
+    """Grade a V3 signal result. Returns None if ats_result is missing."""
+    if ats_result is None:
+        return None
     if signal_type == "S2":
         # S2 bets AWAY
         if ats_result == "away": return "WIN"
@@ -449,8 +451,8 @@ def main():
             elif total_final < close_total: ou_result = "under"
             else:                           ou_result = "push"
 
-        # Log one record per signal (a game can fire both S2 and B2, though
-        # S2 and B2 are mutually exclusive by definition — away NOT B2B vs away B2B)
+        # Log one record per signal (S2 and B2 are mutually exclusive:
+        # S2 requires away NOT B2B, B2 requires away B2B)
         for sig in signals:
             signal_result = grade_signal(sig["signal"], ats_result)
             home_ctx = sig["home_ctx"]
