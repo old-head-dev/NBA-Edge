@@ -604,7 +604,7 @@ async function refreshOdds() {
     const oddsData = await fetchOdds();
     if (!oddsData) throw new Error('No data returned');
     const container = document.getElementById('games-container');
-    const enriched = container._lastEnriched;
+    const enriched = _lastEnriched;
     if (!enriched) throw new Error('Load games first');
     matchOddsToGames(enriched, oddsData);
     const ts = new Date().toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'});
@@ -625,6 +625,7 @@ async function refreshOdds() {
 // =====================================================================
 
 let _seasonRecord = {wins: 0, losses: 0, pushes: 0, total: 0};
+let _lastEnriched = null;
 
 async function loadSeasonRecord() {
   try {
@@ -665,7 +666,6 @@ function wilsonCI(wins, total, z = 1.96) {
 
 function renderSignalSummary(enrichedGames) {
   const container = document.getElementById('signal-summary');
-  const signalCount = enrichedGames.filter(eg => eg.signals.length > 0).length;
   const s2Count = enrichedGames.filter(eg => eg.signals.some(s => s.id === 'S2')).length;
 
   // Season record
@@ -778,10 +778,11 @@ function renderSignalReference() {
           <li>Action: Bet away team against the spread</li>
           <li>Historical (LOSO): <span class="stat">56.8% [50.8-62.6%]</span> combined</li>
           <li>Per-season:
-            <span class="stat">2021: 57.1%</span> (56/98) |
-            <span class="stat">2022: 59.1%</span> (55/93) |
-            <span class="stat">2023: 55.0%</span> (55/100) |
-            <span class="stat">2024: 55.9%</span> (52/93)
+            <span class="muted-stat">2018-19: 49.2%</span> (N=64) |
+            <span class="stat">2021-22: 63.8%</span> (N=49) |
+            <span class="muted-stat">2022-23: 49.0%</span> (N=52) |
+            <span class="stat">2023-24: 66.7%</span> (N=45) |
+            <span class="stat">2024-25: 58.3%</span> (N=60)
           </li>
         </ul>
       </div>
@@ -803,7 +804,7 @@ function renderAll(enrichedGames) {
   const container = document.getElementById('games-container');
 
   // Store enriched data for odds refresh
-  container._lastEnriched = enrichedGames;
+  _lastEnriched = enrichedGames;
 
   if (enrichedGames.length === 0) {
     container.innerHTML = '<div class="state-display">No games scheduled for this date.</div>';
@@ -905,7 +906,7 @@ async function loadGames() {
       return {game: {home, away, date: game.date, datetime: game.datetime}, signals, homeCtx, awayCtx};
     });
 
-    // Sort: signal games first (S2 before B2), then by tip-off time
+    // Sort by tip-off time (signal vs non-signal separation handled in renderAll)
     enriched.sort((a, b) => {
       const aT = a.game.datetime ? new Date(a.game.datetime).getTime() : Infinity;
       const bT = b.game.datetime ? new Date(b.game.datetime).getTime() : Infinity;
@@ -932,7 +933,12 @@ async function loadGames() {
     statusDot.className = 'status-dot error';
     statusText.textContent = `Error: ${err.message}`;
     statusText.style.color = 'var(--red)';
-    container.innerHTML = `<div class="state-display" style="color:var(--red);">Failed to load: ${err.message}</div>`;
+    const errDiv = document.createElement('div');
+    errDiv.className = 'state-display';
+    errDiv.style.color = 'var(--red)';
+    errDiv.textContent = `Failed to load: ${err.message}`;
+    container.innerHTML = '';
+    container.appendChild(errDiv);
     console.error('[V3] Load error:', err);
   }
   refreshBtn.disabled = false;
