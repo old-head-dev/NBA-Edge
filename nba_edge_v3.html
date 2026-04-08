@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NBA EDGE V3</title>
+<link rel="icon" type="image/jpeg" href="icon.jpg">
+<link rel="apple-touch-icon" href="icon.jpg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="NBA Edge">
+<style>
+/* Minimal dark theme — Task 2 will add full CSS */
+:root {
+  --bg:#080b10;--surface:#0e1219;--surface2:#141a23;--border:#1e2733;
+  --text:#dce8f5;--muted:#5a7090;--accent:#f0c040;--accent2:#40a0f0;
+  --green:#30d080;--yellow:#f0c040;--orange:#f07030;--red:#e03050;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;
+  min-height:100vh;padding:24px;line-height:1.5;}
+h1{font-size:24px;font-weight:800;letter-spacing:2px;margin-bottom:4px;}
+h1 span{color:var(--accent2);}
+.version{font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:20px;}
+#status{font-size:12px;color:var(--muted);margin-bottom:16px;font-family:monospace;}
+#games-container{max-width:900px;}
+.game-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:16px;margin-bottom:12px;}
+.game-matchup{font-size:18px;font-weight:700;margin-bottom:8px;}
+.game-detail{font-size:13px;color:var(--muted);margin-bottom:4px;font-family:monospace;}
+.signal{padding:10px 14px;border-radius:6px;margin-top:8px;font-family:monospace;font-size:13px;}
+.signal-primary{background:rgba(48,208,128,0.1);border:1px solid rgba(48,208,128,0.4);color:var(--green);}
+.signal-monitoring{background:rgba(240,192,64,0.08);border:1px solid rgba(240,192,64,0.3);color:var(--yellow);}
+.no-signal{font-size:12px;color:var(--muted);font-family:monospace;margin-top:6px;}
+.date-nav{display:flex;align-items:center;gap:10px;margin-bottom:20px;}
+.date-nav input[type="date"]{background:var(--surface);border:1px solid var(--border);color:var(--text);
+  padding:6px 10px;border-radius:4px;font-family:monospace;font-size:13px;}
+.date-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);
+  padding:6px 12px;border-radius:4px;font-family:monospace;font-size:13px;cursor:pointer;}
+.date-btn:hover{border-color:var(--accent);color:var(--accent);}
+</style>
+</head>
+<body>
+
+<h1>NBA<span>EDGE</span> V3</h1>
+<div class="version">V3 SIGNAL ENGINE — SCHEDULE-BASED</div>
+
+<div class="date-nav">
+  <button class="date-btn" onclick="shiftDate(-1)">PREV</button>
+  <input type="date" id="date-picker" onchange="loadGames()">
+  <button class="date-btn" onclick="shiftDate(1)">NEXT</button>
+</div>
+
+<div id="status">Initializing...</div>
+<div id="games-container"></div>
+
+<script>
+// =====================================================================
+// CONSTANTS
+// =====================================================================
+
+const ARENAS = {
+  ATL:{lat:33.7573,lon:-84.3963,tz:-5},
+  BOS:{lat:42.3662,lon:-71.0621,tz:-5},
+  BKN:{lat:40.6826,lon:-73.9754,tz:-5},
+  CHA:{lat:35.2251,lon:-80.8392,tz:-5},
+  CHI:{lat:41.8807,lon:-87.6742,tz:-6},
+  CLE:{lat:41.4965,lon:-81.6882,tz:-5},
+  DAL:{lat:32.7905,lon:-96.8103,tz:-6},
+  DEN:{lat:39.7487,lon:-105.0077,tz:-7},
+  DET:{lat:42.3410,lon:-83.0552,tz:-5},
+  GSW:{lat:37.7680,lon:-122.3877,tz:-8},
+  HOU:{lat:29.7508,lon:-95.3621,tz:-6},
+  IND:{lat:39.7640,lon:-86.1555,tz:-5},
+  LAC:{lat:33.8958,lon:-118.3386,tz:-8},
+  LAL:{lat:34.0430,lon:-118.2673,tz:-8},
+  MEM:{lat:35.1383,lon:-90.0505,tz:-6},
+  MIA:{lat:25.7814,lon:-80.1870,tz:-5},
+  MIL:{lat:43.0450,lon:-87.9170,tz:-6},
+  MIN:{lat:44.9795,lon:-93.2762,tz:-6},
+  NOP:{lat:29.9490,lon:-90.0812,tz:-6},
+  NYK:{lat:40.7505,lon:-73.9934,tz:-5},
+  OKC:{lat:35.4634,lon:-97.5151,tz:-6},
+  ORL:{lat:28.5392,lon:-81.3839,tz:-5},
+  PHI:{lat:39.9012,lon:-75.1720,tz:-5},
+  PHX:{lat:33.4457,lon:-112.0712,tz:-7},
+  POR:{lat:45.5316,lon:-122.6668,tz:-8},
+  SAC:{lat:38.5802,lon:-121.4997,tz:-8},
+  SAS:{lat:29.4270,lon:-98.4375,tz:-6},
+  TOR:{lat:43.6435,lon:-79.3791,tz:-5},
+  UTA:{lat:40.7683,lon:-111.9011,tz:-7},
+  WAS:{lat:38.8981,lon:-77.0209,tz:-5},
+};
+
+const ALTITUDE_ARENAS = new Set(['DEN', 'UTA']);
+
+const TEAM_NAMES = {
+  ATL:"Atlanta Hawks",BOS:"Boston Celtics",BKN:"Brooklyn Nets",CHA:"Charlotte Hornets",
+  CHI:"Chicago Bulls",CLE:"Cleveland Cavaliers",DAL:"Dallas Mavericks",DEN:"Denver Nuggets",
+  DET:"Detroit Pistons",GSW:"Golden State Warriors",HOU:"Houston Rockets",IND:"Indiana Pacers",
+  LAC:"LA Clippers",LAL:"Los Angeles Lakers",MEM:"Memphis Grizzlies",MIA:"Miami Heat",
+  MIL:"Milwaukee Bucks",MIN:"Minnesota Timberwolves",NOP:"New Orleans Pelicans",NYK:"New York Knicks",
+  OKC:"Oklahoma City Thunder",ORL:"Orlando Magic",PHI:"Philadelphia 76ers",PHX:"Phoenix Suns",
+  POR:"Portland Trail Blazers",SAC:"Sacramento Kings",SAS:"San Antonio Spurs",TOR:"Toronto Raptors",
+  UTA:"Utah Jazz",WAS:"Washington Wizards"
+};
+
+// =====================================================================
+// API
+// =====================================================================
+
+const API_KEY = '6fc270d3-c30f-448d-8034-6a01ff60c546';
+const BASE_URL = 'https://api.balldontlie.io/v1';
+
+async function apiFetch(endpoint) {
+  const res = await fetch(`${BASE_URL}${endpoint}`, {headers:{'Authorization':API_KEY}});
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+// =====================================================================
+// GEOMETRY
+// =====================================================================
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 3959, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+}
+
+// =====================================================================
+// TIME UTILITIES
+// =====================================================================
+
+function todayET() {
+  return new Date().toLocaleDateString('en-CA', {timeZone:'America/New_York'});
+}
+
+function formatDateDisplay(dateStr) {
+  const [y,m,d] = dateStr.split('-').map(Number);
+  return new Date(y, m-1, d, 12).toLocaleDateString('en-US', {
+    weekday:'short', month:'short', day:'numeric'
+  }).toUpperCase();
+}
+
+function formatTipTime(datetimeStr) {
+  if (!datetimeStr) return 'TBD';
+  return new Date(datetimeStr).toLocaleTimeString('en-US', {
+    timeZone:'America/New_York', hour:'numeric', minute:'2-digit', hour12:true
+  }) + ' ET';
+}
+
+// =====================================================================
+// SCHEDULE CONTEXT — Team History Builder
+// =====================================================================
+
+/**
+ * Build per-team game history from an array of BDL game objects.
+ *
+ * Returns: { "BOS": [{date, arena, wasHome}, ...], "LAL": [...], ... }
+ *   - date:    "YYYY-MM-DD" string (calendar date from BDL)
+ *   - arena:   home_team.abbreviation (game is always at home team's arena)
+ *   - wasHome: boolean
+ *
+ * Games are sorted ascending by date within each team's list.
+ */
+function buildTeamHistory(recentGames) {
+  const history = {};
+
+  for (const g of recentGames) {
+    // Only include finished games — skip scheduled/in-progress
+    if (g.status !== 'Final') continue;
+
+    const date = g.date;                          // "YYYY-MM-DD"
+    const arena = g.home_team.abbreviation;       // game played at home team's arena
+    const away = g.visitor_team.abbreviation;
+    const home = g.home_team.abbreviation;
+
+    // Add entry for away team
+    if (!history[away]) history[away] = [];
+    history[away].push({date, arena, wasHome: false});
+
+    // Add entry for home team
+    if (!history[home]) history[home] = [];
+    history[home].push({date, arena, wasHome: true});
+  }
+
+  // Sort each team's history by date ascending
+  for (const team of Object.keys(history)) {
+    history[team].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  return history;
+}
+
+// =====================================================================
+// SCHEDULE CONTEXT — Per-Team Context for a Game
+// =====================================================================
+
+/**
+ * Compute calendar days between two "YYYY-MM-DD" strings.
+ * Returns a positive integer (e.g., 1 = consecutive days = B2B).
+ */
+function daysBetween(dateA, dateB) {
+  const [ay,am,ad] = dateA.split('-').map(Number);
+  const [by,bm,bd] = dateB.split('-').map(Number);
+  const msA = Date.UTC(ay, am-1, ad);
+  const msB = Date.UTC(by, bm-1, bd);
+  return Math.round(Math.abs(msB - msA) / (1000*60*60*24));
+}
+
+/**
+ * Get schedule context for a team on a specific game date.
+ *
+ * arenaTonight: home team abbreviation — the game is ALWAYS at the home team's arena.
+ *
+ * CRITICAL: "traveled" means the team's previous game was at a DIFFERENT arena
+ * than tonight's venue. This matches backtest/v3/schedule.py line 176:
+ *     traveled = prev_arena != arena_tonight
+ *
+ * Returns: { isB2B, traveled, travelDist, prevArena, daysRest }
+ */
+function getScheduleContext(team, gameDate, arenaTonight, teamHistory) {
+  const history = teamHistory[team];
+  if (!history || history.length === 0) {
+    return {isB2B: false, traveled: false, travelDist: 0, prevArena: null, daysRest: null};
+  }
+
+  // Find the most recent game BEFORE gameDate
+  // History is sorted ascending, so walk backward to find last game before today
+  let prevGame = null;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].date < gameDate) {
+      prevGame = history[i];
+      break;
+    }
+  }
+
+  if (!prevGame) {
+    return {isB2B: false, traveled: false, travelDist: 0, prevArena: null, daysRest: null};
+  }
+
+  const days = daysBetween(prevGame.date, gameDate);
+  const isB2B = (days === 1);  // Played yesterday — calendar days between == 1
+
+  // CRITICAL: traveled = previous arena != tonight's arena
+  // This matches schedule.py line 176: prev_arena != arena_tonight
+  const prevArena = prevGame.arena;
+  const traveled = (prevArena !== arenaTonight);
+
+  // Travel distance: haversine between previous arena and tonight's arena
+  let travelDist = 0;
+  if (traveled && ARENAS[prevArena] && ARENAS[arenaTonight]) {
+    travelDist = haversine(
+      ARENAS[prevArena].lat, ARENAS[prevArena].lon,
+      ARENAS[arenaTonight].lat, ARENAS[arenaTonight].lon
+    );
+  }
+
+  return {
+    isB2B,
+    traveled,
+    travelDist,
+    prevArena,
+    daysRest: days - 1,  // 0 = B2B, 1 = one day of rest, etc.
+  };
+}
+
+// =====================================================================
+// SIGNAL DETECTION
+// =====================================================================
+
+/**
+ * Detect V3 signals for a single game.
+ *
+ * game: {home, away, date, datetime} — abbreviations and date string
+ * teamHistory: output of buildTeamHistory()
+ *
+ * Signals:
+ *   S2 (primary):    Home B2B + traveled, away NOT B2B  -> Bet Away ATS
+ *   B2 (monitoring): Both B2B, home traveled             -> Track Home ATS
+ *
+ * Returns array of signal objects (may be empty).
+ */
+function detectSignals(game, teamHistory) {
+  const arenaTonight = game.home;  // Game is always at home team's arena
+  const homeCtx = getScheduleContext(game.home, game.date, arenaTonight, teamHistory);
+  const awayCtx = getScheduleContext(game.away, game.date, arenaTonight, teamHistory);
+
+  const signals = [];
+
+  // S2: Home on B2B + traveled (was away yesterday), away NOT on B2B
+  // -> Bet Away ATS
+  if (homeCtx.isB2B && homeCtx.traveled && !awayCtx.isB2B) {
+    signals.push({
+      id: 'S2',
+      type: 'primary',
+      label: 'BET AWAY ATS',
+      detail: `Home (${game.home}) flew home from ${homeCtx.prevArena} last night (${homeCtx.travelDist}mi)`,
+      confidence: 'VALIDATED',
+      homeCtx,
+      awayCtx,
+    });
+  }
+
+  // B2: Both on B2B, home traveled (was away yesterday)
+  // -> Track Home ATS (monitoring only — not yet validated for betting)
+  if (homeCtx.isB2B && homeCtx.traveled && awayCtx.isB2B) {
+    signals.push({
+      id: 'B2',
+      type: 'monitoring',
+      label: 'TRACKING: HOME ATS',
+      detail: `Both teams on B2B. Home (${game.home}) traveled ${homeCtx.travelDist}mi from ${homeCtx.prevArena}.`,
+      confidence: 'MONITORING',
+      homeCtx,
+      awayCtx,
+    });
+  }
+
+  return {signals, homeCtx, awayCtx};
+}
+
+// =====================================================================
+// HISTORY FETCHER
+// =====================================================================
+
+/**
+ * Fetch 21 days of game history for all teams playing on the target date.
+ * Uses BDL /games endpoint with team_ids[], start_date, end_date.
+ * Paginates with cursor to get all results.
+ */
+async function fetchHistory(teamIds, dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  // History window: 21 days before the target date (not including target date)
+  const endDate = new Date(y, m-1, d-1, 12);  // day before target
+  const startDate = new Date(y, m-1, d-21, 12);  // 21 days before target
+  const endStr = endDate.toLocaleDateString('en-CA');
+  const startStr = startDate.toLocaleDateString('en-CA');
+
+  const teamIdsParam = teamIds.map(id => `team_ids[]=${id}`).join('&');
+
+  let allGames = [];
+  try {
+    const resp = await apiFetch(`/games?${teamIdsParam}&start_date=${startStr}&end_date=${endStr}&per_page=100`);
+    allGames = resp.data || [];
+    let cursor = resp.meta?.next_cursor;
+    while (cursor && allGames.length < 300) {
+      const page = await apiFetch(`/games?${teamIdsParam}&start_date=${startStr}&end_date=${endStr}&per_page=100&cursor=${cursor}`);
+      allGames = allGames.concat(page.data || []);
+      cursor = page.meta?.next_cursor;
+      // Small delay to respect rate limits
+      await new Promise(r => setTimeout(r, 500));
+    }
+  } catch (e) {
+    console.warn('History fetch failed:', e.message);
+  }
+
+  return allGames;
+}
+
+// =====================================================================
+// RENDERING (minimal — Task 2 will replace)
+// =====================================================================
+
+function renderGames(enrichedGames) {
+  const container = document.getElementById('games-container');
+
+  if (enrichedGames.length === 0) {
+    container.innerHTML = '<div style="color:var(--muted);font-family:monospace;padding:20px;">No games scheduled for this date.</div>';
+    return;
+  }
+
+  let html = '';
+  for (const eg of enrichedGames) {
+    const {game, signals, homeCtx, awayCtx} = eg;
+    const tipTime = formatTipTime(game.datetime);
+    const awayName = TEAM_NAMES[game.away] || game.away;
+    const homeName = TEAM_NAMES[game.home] || game.home;
+
+    // Schedule context summary
+    const homeRest = homeCtx.daysRest !== null ? `${homeCtx.daysRest}d rest` : 'rest unknown';
+    const awayRest = awayCtx.daysRest !== null ? `${awayCtx.daysRest}d rest` : 'rest unknown';
+    const homeB2B = homeCtx.isB2B ? ' [B2B]' : '';
+    const awayB2B = awayCtx.isB2B ? ' [B2B]' : '';
+    const homeTraveled = homeCtx.traveled ? ` traveled ${homeCtx.travelDist}mi from ${homeCtx.prevArena}` : '';
+    const awayTraveled = awayCtx.traveled ? ` traveled ${awayCtx.travelDist}mi from ${awayCtx.prevArena}` : '';
+
+    html += `<div class="game-card">`;
+    html += `<div class="game-matchup">${game.away} @ ${game.home}</div>`;
+    html += `<div class="game-detail">${tipTime} &mdash; ${awayName} at ${homeName}</div>`;
+    html += `<div class="game-detail">AWAY: ${awayRest}${awayB2B}${awayTraveled}</div>`;
+    html += `<div class="game-detail">HOME: ${homeRest}${homeB2B}${homeTraveled}</div>`;
+
+    if (signals.length > 0) {
+      for (const sig of signals) {
+        const cls = sig.type === 'primary' ? 'signal-primary' : 'signal-monitoring';
+        html += `<div class="signal ${cls}">`;
+        html += `<strong>[${sig.id}]</strong> ${sig.label}<br>`;
+        html += `<span style="font-size:11px;">${sig.detail}</span>`;
+        html += `</div>`;
+      }
+    } else {
+      html += `<div class="no-signal">No signals</div>`;
+    }
+
+    html += `</div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+// =====================================================================
+// MAIN FLOW
+// =====================================================================
+
+async function loadGames() {
+  const dateStr = document.getElementById('date-picker').value;
+  if (!dateStr) return;
+
+  const status = document.getElementById('status');
+  const container = document.getElementById('games-container');
+
+  status.textContent = `Fetching games for ${dateStr}...`;
+  container.innerHTML = '';
+
+  try {
+    // 1. Fetch today's games
+    const gamesResp = await apiFetch(`/games?dates[]=${dateStr}&per_page=100`);
+    const games = gamesResp.data || [];
+
+    if (games.length === 0) {
+      status.textContent = `${formatDateDisplay(dateStr)} — No games scheduled.`;
+      container.innerHTML = '<div style="color:var(--muted);font-family:monospace;padding:20px;">No games scheduled for this date.</div>';
+      return;
+    }
+
+    status.textContent = `${formatDateDisplay(dateStr)} — ${games.length} game${games.length !== 1 ? 's' : ''} found. Fetching history...`;
+
+    // 2. Collect all team IDs playing today
+    const teamIds = [...new Set([
+      ...games.map(g => g.home_team.id),
+      ...games.map(g => g.visitor_team.id)
+    ])];
+
+    // 3. Fetch 21 days of history for these teams
+    const recentGames = await fetchHistory(teamIds, dateStr);
+
+    // 4. Build team history
+    const teamHistory = buildTeamHistory(recentGames);
+
+    // 5. For each game, detect signals
+    const enriched = games.map(game => {
+      const away = game.visitor_team.abbreviation;
+      const home = game.home_team.abbreviation;
+      const {signals, homeCtx, awayCtx} = detectSignals(
+        {home, away, date: game.date, datetime: game.datetime},
+        teamHistory
+      );
+      return {game: {home, away, date: game.date, datetime: game.datetime}, signals, homeCtx, awayCtx};
+    });
+
+    // Sort by tip-off time (earliest first)
+    enriched.sort((a, b) => {
+      const aT = a.game.datetime ? new Date(a.game.datetime).getTime() : Infinity;
+      const bT = b.game.datetime ? new Date(b.game.datetime).getTime() : Infinity;
+      return aT - bT;
+    });
+
+    // 6. Console.log signals for debugging
+    const signalGames = enriched.filter(eg => eg.signals.length > 0);
+    console.log(`[V3] ${formatDateDisplay(dateStr)}: ${games.length} games, ${recentGames.length} history records, ${signalGames.length} games with signals`);
+    for (const eg of signalGames) {
+      for (const sig of eg.signals) {
+        console.log(`  [${sig.id}] ${eg.game.away} @ ${eg.game.home}: ${sig.label} — ${sig.detail}`);
+      }
+    }
+
+    // 7. Render to page
+    status.textContent = `${formatDateDisplay(dateStr)} — ${games.length} games | ${recentGames.length} history records | ${signalGames.length} signal${signalGames.length !== 1 ? 's' : ''}`;
+    renderGames(enriched);
+
+  } catch (err) {
+    status.textContent = `Error: ${err.message}`;
+    container.innerHTML = `<div style="color:var(--red);font-family:monospace;padding:20px;">Failed to load: ${err.message}</div>`;
+    console.error('[V3] Load error:', err);
+  }
+}
+
+function shiftDate(days) {
+  const picker = document.getElementById('date-picker');
+  const [y, m, d] = picker.value.split('-').map(Number);
+  picker.value = new Date(y, m-1, d+days, 12).toLocaleDateString('en-CA');
+  loadGames();
+}
+
+// ── Initialize ──
+(function init() {
+  const picker = document.getElementById('date-picker');
+  picker.value = todayET();
+  loadGames();
+})();
+</script>
+</body>
+</html>
