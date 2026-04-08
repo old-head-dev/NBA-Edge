@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-NBA Edge Model — Nightly Results Logger
+NBA Edge V3 — Nightly Results Logger
 Runs via GitHub Actions at 9am ET daily.
 Pulls previous day's finalized NBA games from SGO,
-computes ATS/OU outcomes for fatigue-flagged games,
-appends to data/results.json.
+detects V3 schedule signals (S2, B2), grades ATS outcomes,
+appends to data/results_v3.json.
 """
 
 import os
@@ -24,7 +24,7 @@ BDL_HEADERS = {"Authorization": BDL_KEY}
 
 ET = ZoneInfo("America/New_York")
 
-# ── FATIGUE MODEL (mirrors nba_edge_v2.html exactly) ─────────────
+# ── V3 SIGNAL MODEL ──────────────────────────────────────────────
 import math
 
 ARENAS = {
@@ -94,144 +94,89 @@ def get_dist(a, b):
     if a not in ARENAS or b not in ARENAS: return 0
     return haversine(ARENAS[a]["lat"], ARENAS[a]["lon"], ARENAS[b]["lat"], ARENAS[b]["lon"])
 
-def get_utc_offset(arena, date_str):
-    from zoneinfo import ZoneInfo
-    tz_name = ARENAS.get(arena, {}).get("tz_name")
-    if not tz_name: return -6
-    tz = ZoneInfo(tz_name)
-    y, m, d = map(int, date_str.split("-"))
-    dt = datetime(y, m, d, 17, 0, 0, tzinfo=timezone.utc)
-    local = dt.astimezone(tz)
-    offset = local.utcoffset().total_seconds() / 3600
-    return offset
+def get_schedule_context(team, game_date, game_arena, team_history):
+    """Simple schedule context -- just B2B and travel detection.
 
-def estimate_btb_sleep(from_arena, to_arena, prev_tip_local_hr=20.0, tonight_tip_local_hr=19.0, date_str=None):
-    """Canonical sleep formula matching nba_backtest.js."""
-    dist = get_dist(from_arena, to_arena)
-    flight_hrs = dist / 500
-    to_tz   = get_utc_offset(to_arena,   date_str or "2026-01-01")
-    from_tz = get_utc_offset(from_arena, date_str or "2026-01-01")
-    tz_shift = to_tz - from_tz
-    game_end = prev_tip_local_hr + 2.5
-    departure_dest = game_end + 2.5 + tz_shift
-    landing_dest   = departure_dest + flight_hrs
-    hotel_arrival  = landing_dest + 0.75
-    # Wake-up capped at 10am local (34.0 on 24+ scale, same as hotel_arrival)
-    wake_up = 34.0
-    # Sleep = arrival to 10am, no extras
-    total = max(0, wake_up - hotel_arrival)
-    return {"dist": dist, "flight_hrs": round(flight_hrs,1),
-            "total": round(total,1), "tz_delta": tz_shift}
-
-def compute_fatigue_score(scenario, is_btb, effective_sleep, tz_delta, prev_late, density_tag, altitude_penalty=0):
-    """Canonical scoring weights matching nba_backtest.js."""
-    base = 0
-    if is_btb:
-        base = {"A":5,"C":4,"B":3,"home-home":2}.get(scenario, 2)
-    sleep_mod = 0
-    if is_btb and effective_sleep is not None:
-        if   effective_sleep < 4: sleep_mod = 4
-        elif effective_sleep < 6: sleep_mod = 2
-        elif effective_sleep < 7: sleep_mod = 1
-    tz_mod      = min(tz_delta * 0.5, 1.5) if tz_delta > 0 else 0
-    late_mod    = 0.5 if (is_btb and prev_late) else 0
-    density_mod = 2 if density_tag == "4-in-6" else 1 if density_tag == "3-in-4" else 0
-    return min(10, max(0, round((base + sleep_mod + tz_mod + late_mod + density_mod + altitude_penalty) * 10) / 10))
-
-def analyze_fatigue(team, is_home, days_rest, prev_arena, home_team, was_home_last,
-                    games_in4=1, games_in6=1, prev_tip_hr=19.5, prev_late=False,
-                    recent_altitude=False, date_str=None, tonight_tip_local_hr=19.0):
-    if days_rest is None:
-        return {"score": 0, "scenario": None, "detail": "Rest unknown"}
-
-    density_tag = None
-    if games_in4 >= 3:
-        density_tag = "4-in-6" if games_in6 >= 4 else "3-in-4"
-    elif games_in6 >= 4:
-        density_tag = "4-in-6"
-
-    alt_penalty = 1.0 if (not is_home and home_team in ALTITUDE_ARENAS and not recent_altitude) else 0
-    is_btb = days_rest == 0
-
-    if is_home:
-        if not is_btb:
-            score = compute_fatigue_score(None, False, 99, 0, False, density_tag, 0)
-            return {"score": score, "scenario": None, "detail": "Home court", "is_btb": False}
-        if not was_home_last:
-            s = estimate_btb_sleep(prev_arena or team, home_team, prev_tip_hr, tonight_tip_local_hr, date_str)
-            adj = round(s["total"] * 10) / 10  # base score difference (C=4 vs A=5) reflects own-bed advantage
-            score = compute_fatigue_score("C", True, adj, s["tz_delta"], prev_late, density_tag, 0)
-            return {"score": score, "scenario": "C", "detail": f"BTB away→home · {s['dist']}mi", "is_btb": True, "sleep": adj}
-        else:
-            prev_adj = prev_tip_hr if prev_tip_hr >= 12 else prev_tip_hr + 24
-            hh_sleep = max(0, 34.0 - (prev_adj + 3.5))
-            score = compute_fatigue_score("home-home", True, hh_sleep, 0, prev_late, density_tag, 0)
-            return {"score": score, "scenario": "home-home", "detail": "Home BTB", "is_btb": True, "sleep": round(hh_sleep,1)}
-
-    if days_rest >= 2:
-        score = compute_fatigue_score(None, False, 99, 0, False, density_tag, alt_penalty)
-        return {"score": score, "scenario": None, "detail": "Road, full rest", "is_btb": False}
-
-    if days_rest == 1:
-        dist = get_dist(prev_arena or team, home_team)
-        tz_delta = get_utc_offset(home_team, date_str or "2026-01-01") - get_utc_offset(prev_arena or team, date_str or "2026-01-01")
-        severe = tz_delta >= 2 and dist > 1800
-        score = compute_fatigue_score(None, False, 99, tz_delta if severe else 0, False, density_tag, alt_penalty)
-        return {"score": score, "scenario": None, "detail": f"Road 1d rest {'(body clock)' if severe else ''}", "is_btb": False}
-
-    # BTB away
-    if was_home_last:
-        dist = get_dist(team, home_team)
-        tz_delta = get_utc_offset(home_team, date_str or "2026-01-01") - get_utc_offset(team, date_str or "2026-01-01")
-        prev_adj = prev_tip_hr if prev_tip_hr >= 12 else prev_tip_hr + 24
-        raw_sleep = max(0, 34.0 - (prev_adj + 3.5))
-        body_clock = tz_delta * 0.3 if tz_delta > 0 else 0
-        adj = max(0, raw_sleep - body_clock)
-        score = compute_fatigue_score("B", True, adj, tz_delta, prev_late, density_tag, alt_penalty)
-        return {"score": score, "scenario": "B", "detail": f"BTB home→away · {dist}mi", "is_btb": True, "sleep": round(adj,1)}
-
-    # Scenario A
-    from_arena = prev_arena or team
-    s = estimate_btb_sleep(from_arena, home_team, prev_tip_hr, tonight_tip_local_hr, date_str)
-    adj = max(0, s["total"])
-    score = compute_fatigue_score("A", True, adj, s["tz_delta"], prev_late, density_tag, alt_penalty)
-    return {"score": score, "scenario": "A", "detail": f"BTB road trip · {s['dist']}mi", "is_btb": True, "sleep": round(adj,1)}
-
-# Team quality: wpct < .350 is toxic (36.7% ATS combined)
-TANK_WATCH = {"UTA", "SAC", "BKN", "IND", "WAS"}
-
-def get_betting_signals(away_f, home_f, away_abbr=None, home_abbr=None):
+    game_arena: the HOME team abbreviation (game is always at home arena).
+    Must match backtest/v3/schedule.py definition: traveled = prev_arena != arena_tonight.
     """
-    V2 signal engine — mirrors getBettingSignals() in nba_edge_v2.html.
-    Returns a list of dicts — a game can fire multiple signals.
-    """
+    games = team_history.get(team, [])
+    if not games:
+        return {"is_b2b": False, "traveled": False, "travel_dist": 0, "prev_arena": None}
+
+    # Find most recent game before game_date
+    # team_history entries have "et_date" (datetime.date) and "home_abbr" keys
+    played = [g for g in games if g["et_date"] < game_date]
+    if not played:
+        return {"is_b2b": False, "traveled": False, "travel_dist": 0, "prev_arena": None}
+
+    last = played[-1]  # already sorted ascending by date
+    days_since = (game_date - last["et_date"]).days
+    is_b2b = (days_since == 1)  # played exactly yesterday
+
+    # "traveled" = previous game was at a different arena than TONIGHT's game arena
+    prev_arena = last["home_abbr"]  # game is always at home team's arena
+    traveled = (prev_arena != game_arena)
+
+    travel_dist = 0
+    if traveled and prev_arena in ARENAS and game_arena in ARENAS:
+        travel_dist = haversine(
+            ARENAS[prev_arena]["lat"], ARENAS[prev_arena]["lon"],
+            ARENAS[game_arena]["lat"], ARENAS[game_arena]["lon"]
+        )
+
+    return {
+        "is_b2b": is_b2b,
+        "traveled": traveled,
+        "travel_dist": round(travel_dist),
+        "prev_arena": prev_arena,
+    }
+
+def detect_v3_signals(home, away, game_date, team_history):
+    """Detect V3 signals for a game. Returns list of signal dicts."""
+    game_arena = home  # game is always at home team's arena
+    home_ctx = get_schedule_context(home, game_date, game_arena, team_history)
+    away_ctx = get_schedule_context(away, game_date, game_arena, team_history)
+
     signals = []
-    diff  = away_f["score"] - home_f["score"]  # positive = away worse
-    delta = abs(diff)
 
-    # UNDER signal: both >= 5, away = Scenario A (road-trip BTB only — B excluded at 52%)
-    if (away_f["score"] >= 5 and home_f["score"] >= 5
-            and away_f.get("is_btb") and away_f.get("scenario") == "A"):
-        home_scen = home_f.get("scenario")
-        if home_scen == "home-home":
-            conf = "+++"
-        elif home_scen == "C":
-            conf = "++"
-        else:
-            conf = "+"
-        signals.append({"type": "under", "confidence": conf})
+    # S2: Home B2B + traveled, away NOT B2B
+    if home_ctx["is_b2b"] and home_ctx["traveled"] and not away_ctx["is_b2b"]:
+        signals.append({
+            "signal": "S2",
+            "bet_direction": "away",
+            "detail": f"{home} flew home from {home_ctx['prev_arena']} ({home_ctx['travel_dist']}mi)",
+            "home_ctx": home_ctx,
+            "away_ctx": away_ctx,
+        })
 
-    # SPREAD signal: home more fatigued (AWAY EDGE), delta >= 4
-    # Removed scenario restriction — any home BTB qualifies at delta >= 4
-    if diff < 0 and delta >= 4 and home_f.get("is_btb"):
-        signals.append({"type": "spread"})
-
-    # SPREAD-FLIP signal: away more fatigued (HOME EDGE), delta >= 4
-    # Market over-adjusts for away fatigue — bet fatigued away team ATS
-    if diff > 0 and delta >= 4 and away_f.get("is_btb"):
-        signals.append({"type": "spread-flip"})
+    # B2: Both B2B + home traveled
+    if home_ctx["is_b2b"] and home_ctx["traveled"] and away_ctx["is_b2b"]:
+        signals.append({
+            "signal": "B2",
+            "bet_direction": "home",
+            "detail": f"Both B2B. {home} traveled {home_ctx['travel_dist']}mi from {home_ctx['prev_arena']}",
+            "home_ctx": home_ctx,
+            "away_ctx": away_ctx,
+        })
 
     return signals
+
+def grade_signal(signal_type, ats_result):
+    """Grade a V3 signal result. Returns None if ats_result is missing."""
+    if ats_result is None:
+        return None
+    if signal_type == "S2":
+        # S2 bets AWAY
+        if ats_result == "away": return "WIN"
+        if ats_result == "home": return "LOSS"
+        return "PUSH"
+    elif signal_type == "B2":
+        # B2 tracks HOME
+        if ats_result == "home": return "WIN"
+        if ats_result == "away": return "LOSS"
+        return "PUSH"
+    return None
 
 # ── SGO FETCH HELPERS ─────────────────────────────────────────────
 
@@ -266,8 +211,8 @@ def fetch_all_events(params):
 
 def fetch_bdl_history(start_date_str, end_date_str):
     """
-    Fetch games between two dates from BDL for fatigue/rest history.
-    Only needs 6 days (max density window = 5 days + 1 buffer).
+    Fetch games between two dates from BDL for schedule history.
+    V3 only needs ~3 days for B2B detection.
     Batches in chunks of 6 dates per request to stay within param limits.
     """
     from datetime import date as _date
@@ -389,108 +334,54 @@ def main():
 
     print(f"Found {len(events)} finalized games")
 
-    # Fetch last 6 days of games from BDL for fatigue/rest calculation.
-    # 6 days covers the full density window (3-in-4, 4-in-6) plus BTB.
-    # BDL is free/unlimited so this replaces the SGO history fetch.
+    # Fetch last 3 days of games from BDL for B2B detection.
+    # V3 only needs 1 prior day for B2B, but fetch 3 for safety buffer.
     y, m, d  = map(int, yesterday.split("-"))
     hist_end   = yesterday  # exclusive: stop before yesterday's games
-    hist_start = (datetime(y, m, d) - timedelta(days=6)).strftime("%Y-%m-%d")
+    hist_start = (datetime(y, m, d) - timedelta(days=3)).strftime("%Y-%m-%d")
     history_games = fetch_bdl_history(hist_start, hist_end)
-    print(f"Fetched {len(history_games)} history games (BDL, last 6 days) for fatigue calc")
+    print(f"Fetched {len(history_games)} history games (BDL, last 3 days) for B2B detection")
 
     # Build team history keyed by abbreviation.
     # BDL provides a "datetime" UTC ISO string for actual tip time.
+    # V3 needs et_date (datetime.date) and home_abbr for schedule context.
     team_history = {}
     for g in history_games:
-        home_abbr = g["home_team"]["abbreviation"]
-        away_abbr = g["visitor_team"]["abbreviation"]
+        home_abbr_h = g["home_team"]["abbreviation"]
+        away_abbr_h = g["visitor_team"]["abbreviation"]
         starts_at = g.get("datetime") or (g["date"][:10] + "T00:30:00Z")
+        et_dt = datetime.fromisoformat(starts_at.replace("Z", "+00:00")).astimezone(ET).date()
         rec = {
             "starts_at": starts_at,
-            "home_abbr": home_abbr,
-            "away_abbr": away_abbr,
+            "home_abbr": home_abbr_h,
+            "away_abbr": away_abbr_h,
+            "et_date": et_dt,
         }
-        team_history.setdefault(home_abbr, []).append(rec)
-        team_history.setdefault(away_abbr, []).append(rec)
+        team_history.setdefault(home_abbr_h, []).append(rec)
+        team_history.setdefault(away_abbr_h, []).append(rec)
 
     for abbr_key in team_history:
         team_history[abbr_key].sort(key=lambda x: x["starts_at"])
 
-    def calc_rest(team_abbr, target_date_str):
-        games = team_history.get(team_abbr, [])
-        if not games:
-            return {"days_rest": None, "prev_arena": None, "was_home_last": None,
-                    "games_in4": 1, "games_in6": 1, "prev_tip_hr": 19.5,
-                    "prev_late": False, "recent_altitude": False}
+    # Parse yesterday as a date object for V3 signal detection
+    game_date = datetime.strptime(yesterday, "%Y-%m-%d").date()
 
-        # Convert starts_at to ET calendar date for each game.
-        # Using UTC timestamps to compare calendar dates causes BTB misclassification:
-        # a 10:30pm ET tip = 3:30am UTC next day, so comparing against UTC midnight
-        # puts it on the wrong calendar date.
-        def et_date(starts_at_str):
-            dt = datetime.fromisoformat(starts_at_str.replace("Z", "+00:00"))
-            return dt.astimezone(ET).date()
-
-        target_date = datetime.strptime(target_date_str, "%Y-%m-%d").date()
-
-        # Only include games played before target date (ET calendar)
-        played = [g for g in games if et_date(g["starts_at"]) < target_date]
-        if not played:
-            return {"days_rest": None, "prev_arena": None, "was_home_last": None,
-                    "games_in4": 1, "games_in6": 1, "prev_tip_hr": 19.5,
-                    "prev_late": False, "recent_altitude": False}
-
-        last = played[-1]
-        last_et_date = et_date(last["starts_at"])
-        days_rest = (target_date - last_et_date).days - 1  # 0 = BTB, 1 = one day off, etc.
-        days_rest = max(0, days_rest)
-
-        was_home  = last["home_abbr"] == team_abbr
-        home_abbr = last["home_abbr"]
-
-        # prev tip local hr — use actual UTC tip time from BDL datetime field
-        last_dt = datetime.fromisoformat(last["starts_at"].replace("Z", "+00:00"))
-        last_local = last_dt.astimezone(ZoneInfo(ARENAS.get(home_abbr, {}).get("tz_name", "America/New_York")))
-        prev_tip_hr = last_local.hour + last_local.minute / 60
-        if prev_tip_hr < 12:
-            prev_tip_hr += 24  # push into 0-48 scale (handles midnight crossover)
-        prev_late = prev_tip_hr >= 21.5
-
-        # Density: count games in last N calendar days (ET) before target
-        def count_in(n):
-            cutoff = target_date - timedelta(days=n)
-            return sum(1 for g in played if et_date(g["starts_at"]) >= cutoff)
-
-        games_in3 = count_in(3)
-        games_in5 = count_in(5)
-
-        # Altitude visit: did this team play in DEN or UTA in the last 4 calendar days?
-        cutoff4 = target_date - timedelta(days=4)
-        recent_altitude = any(
-            et_date(g["starts_at"]) >= cutoff4
-            and g["home_abbr"] in ALTITUDE_ARENAS
-            for g in played
-        )
-
-        return {
-            "days_rest":       days_rest,
-            "prev_arena":      home_abbr,
-            "was_home_last":   was_home,
-            "games_in4":       games_in3 + 1,
-            "games_in6":       games_in5 + 1,
-            "prev_tip_hr":     prev_tip_hr,
-            "prev_late":       prev_late,
-            "recent_altitude": recent_altitude,
-        }
-
-    # Load existing results
-    results_path = os.path.join(os.path.dirname(__file__), "..", "data", "results.json")
+    # Load existing V3 results
+    results_path = os.path.join(os.path.dirname(__file__), "..", "data", "results_v3.json")
     results_path = os.path.normpath(results_path)
     try:
         with open(results_path) as f:
             existing = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        existing = {"games": [], "meta": {"last_updated": "", "total_flagged": 0}}
+        existing = {
+            "version": "3.0",
+            "games": [],
+            "meta": {
+                "last_updated": None,
+                "model_version": "V3-S2",
+                "historical_rate": "56.8% away ATS [50.8-62.6%] (5 seasons, N=270)",
+            },
+        }
 
     existing_ids = {g["event_id"] for g in existing["games"]}
     new_games = []
@@ -503,8 +394,6 @@ def main():
 
         home_obj = event["teams"]["home"]
         away_obj = event["teams"]["away"]
-        home_tid = home_obj["teamID"]
-        away_tid = away_obj["teamID"]
         home     = abbr(home_obj)
         away     = abbr(away_obj)
 
@@ -536,111 +425,19 @@ def main():
         home_score = float(home_pts)
         away_score = float(total_pts) - home_score
 
-        # Compute tonight's tip time in home arena local hours
-        tonight_tip_local_hr = 19.0  # default 7pm
-        starts_at_raw = event.get("status", {}).get("startsAt", "")
-        if starts_at_raw:
-            try:
-                game_dt = datetime.fromisoformat(starts_at_raw.replace("Z", "+00:00"))
-                home_tz = ZoneInfo(ARENAS.get(home, {}).get("tz_name", "America/New_York"))
-                game_local = game_dt.astimezone(home_tz)
-                tonight_tip_local_hr = game_local.hour + game_local.minute / 60
-                if tonight_tip_local_hr < 12:
-                    tonight_tip_local_hr += 24  # push into 0-48 scale
-            except Exception:
-                pass
-
-        # Fatigue scores
-        hr = calc_rest(home, yesterday)
-        ar = calc_rest(away, yesterday)
-
-        home_f = analyze_fatigue(home, True,  hr["days_rest"], hr["prev_arena"], home,
-                                 hr["was_home_last"], hr["games_in4"], hr["games_in6"],
-                                 hr["prev_tip_hr"], hr["prev_late"], hr["recent_altitude"],
-                                 yesterday, tonight_tip_local_hr)
-        away_f = analyze_fatigue(away, False, ar["days_rest"], ar["prev_arena"], home,
-                                 ar["was_home_last"], ar["games_in4"], ar["games_in6"],
-                                 ar["prev_tip_hr"], ar["prev_late"], ar["recent_altitude"],
-                                 yesterday, tonight_tip_local_hr)
-
-        away_fat = round(away_f["score"], 1)
-        home_fat = round(home_f["score"], 1)
-        diff     = round(away_fat - home_fat, 1)  # positive = away more fatigued = home edge
-
-        # Only log if a v2.1 betting signal fires
-        signals = get_betting_signals(away_f, home_f, away, home)
+        # V3 signal detection — simple B2B + travel
+        signals = detect_v3_signals(home, away, game_date, team_history)
         if not signals:
-            print(f"  Skip {away} @ {home}...")
+            print(f"  Skip {away} @ {home}: no V3 signals")
             continue
 
-        signal_types = [s["type"] for s in signals]
-        has_spread = "spread" in signal_types
-        has_under  = "under"  in signal_types
-        has_flip   = "spread-flip" in signal_types
-
-        # Get closing lines for gate checks
-        outcomes_pre = compute_outcomes(event)
-        close_spread_pre = outcomes_pre["close_spread"]
-        close_total_pre  = outcomes_pre["close_total"]
-
-        # Gate SPREAD: home must be favored, spread -1 to -9.5
-        if has_spread and close_spread_pre is not None:
-            if close_spread_pre > -1 or close_spread_pre < -9.5:
-                has_spread = False
-                print(f"  Spread voided for {away} @ {home}: spread={close_spread_pre} outside -1 to -9.5")
-        elif has_spread and close_spread_pre is None:
-            has_spread = False
-            print(f"  Spread voided for {away} @ {home}: no closing spread")
-
-        # Gate SPREAD-FLIP: home spread must be -1 to -6.5
-        if has_flip and close_spread_pre is not None:
-            if close_spread_pre > -1 or close_spread_pre < -6.5:
-                has_flip = False
-                print(f"  Flip voided for {away} @ {home}: spread={close_spread_pre} outside -1 to -6.5")
-        elif has_flip and close_spread_pre is None:
-            has_flip = False
-            print(f"  Flip voided for {away} @ {home}: no closing spread")
-
-        # Gate UNDER: total must be < 234
-        under_confidence = None
-        if has_under:
-            under_sig = next(s for s in signals if s["type"] == "under")
-            under_confidence = under_sig["confidence"]
-            if close_total_pre is not None and close_total_pre >= 234:
-                has_under = False
-                print(f"  Under voided for {away} @ {home}: total={close_total_pre} >= 234")
-
-        if not has_spread and not has_under and not has_flip:
-            print(f"  Skip {away} @ {home}: no valid signals after gates")
-            continue
-
-        # Build signal_type string
-        active = []
-        if has_spread: active.append("spread")
-        if has_flip: active.append("spread-flip")
-        if has_under: active.append("under")
-        signal_type = "+".join(active)
-
-        # Edge direction (kept for display/legacy)
-        if diff > 0:
-            edge = "HOME"
-            flagged_team = away
-        elif diff < 0:
-            edge = "AWAY"
-            flagged_team = home
-        else:
-            edge = "EVEN"
-            flagged_team = ""
-
-        # Both tired flag (raw, for display)
-        both_tired = away_fat >= 5 and home_fat >= 5
-
-        # Outcomes (already fetched above for spread gate)
-        outcomes = outcomes_pre
+        # Get closing lines and outcomes
+        outcomes = compute_outcomes(event)
+        close_spread = outcomes["close_spread"]
+        close_total  = outcomes["close_total"]
 
         # ATS grading
         ats_result = None
-        close_spread = outcomes["close_spread"]
         if close_spread is not None:
             margin = home_score - away_score
             net = margin + close_spread
@@ -648,78 +445,54 @@ def main():
 
         # O/U grading
         ou_result = outcomes["ou_result"]
-        close_total = outcomes["close_total"]
         if ou_result is None and close_total is not None:
             total_final = home_score + away_score
             if total_final > close_total:   ou_result = "over"
             elif total_final < close_total: ou_result = "under"
             else:                           ou_result = "push"
 
-        # Spread bet result: bet is on AWAY team (AWAY EDGE signal)
-        edge_ats = None
-        if has_spread and ats_result:
-            edge_ats = "WIN" if ats_result == "away" else (
-                "PUSH" if ats_result == "push" else "LOSS")
+        # Log one record per signal (S2 and B2 are mutually exclusive:
+        # S2 requires away NOT B2B, B2 requires away B2B)
+        for sig in signals:
+            signal_result = grade_signal(sig["signal"], ats_result)
+            home_ctx = sig["home_ctx"]
+            away_ctx = sig["away_ctx"]
 
-        # Spread-flip bet result: also bet on AWAY team (away covers despite fatigue)
-        flip_ats = None
-        if has_flip and ats_result:
-            flip_ats = "WIN" if ats_result == "away" else (
-                "PUSH" if ats_result == "push" else "LOSS")
+            rec = {
+                "date":            yesterday,
+                "event_id":        eid,
+                "matchup":         f"{away} @ {home}",
+                "away":            away,
+                "home":            home,
+                "away_score":      int(away_score),
+                "home_score":      int(home_score),
+                "signal":          sig["signal"],
+                "signal_detail":   sig["detail"],
+                "home_b2b":        home_ctx["is_b2b"],
+                "home_traveled":   home_ctx["traveled"],
+                "home_travel_dist": home_ctx["travel_dist"],
+                "away_b2b":        away_ctx["is_b2b"],
+                "close_spread":    close_spread,
+                "close_total":     close_total,
+                "ats_result":      ats_result,
+                "ou_result":       ou_result,
+                "signal_result":   signal_result,
+            }
 
-        # Under bet result
-        under_result = None
-        if has_under and ou_result:
-            under_result = "WIN" if ou_result == "under" else (
-                "PUSH" if ou_result == "push" else "LOSS")
-
-        starts_at = event["status"].get("startsAt","")
-
-        rec = {
-            "event_id":      eid,
-            "date":          yesterday,
-            "starts_at":     starts_at,
-            "matchup":       f"{away} @ {home}",
-            "away":          away,
-            "home":          home,
-            "away_score":    int(away_score),
-            "home_score":    int(home_score),
-            "away_fatigue":  away_fat,
-            "home_fatigue":  home_fat,
-            "away_scenario": away_f.get("scenario"),
-            "home_scenario": home_f.get("scenario"),
-            "away_detail":   away_f.get("detail",""),
-            "home_detail":   home_f.get("detail",""),
-            "fatigue_diff":  abs(diff),
-            "edge":          edge,
-            "flagged_team":  flagged_team,
-            "both_tired":    both_tired,
-            "signal_type":   signal_type,
-            "under_confidence": under_confidence,
-            "close_spread":  close_spread,
-            "close_total":   close_total,
-            "ats_result":    ats_result,
-            "ou_result":     ou_result,
-            "edge_ats":      edge_ats,
-            "flip_ats":      flip_ats,
-            "under_result":  under_result,
-        }
-
-        new_games.append(rec)
-        print(f"  LOGGED: {away} @ {home} | signal={signal_type} | away={away_fat} home={home_fat} | ATS={edge_ats} FLIP={flip_ats} OU={under_result}")
+            new_games.append(rec)
+            print(f"  LOGGED: {away} @ {home} | {sig['signal']} | {sig['detail']} | result={signal_result}")
 
     if new_games:
         existing["games"].extend(new_games)
         existing["games"].sort(key=lambda x: x["date"])
-        existing["meta"]["last_updated"]  = now_et.strftime("%Y-%m-%d %H:%M ET")
-        existing["meta"]["total_flagged"] = len(existing["games"])
+        existing["meta"]["last_updated"] = now_et.strftime("%Y-%m-%d %H:%M ET")
 
         os.makedirs(os.path.dirname(results_path), exist_ok=True)
         with open(results_path, "w") as f:
             json.dump(existing, f, indent=2)
-        print(f"\nWrote {len(new_games)} new games to results.json ({existing['meta']['total_flagged']} total)")
+        print(f"\nWrote {len(new_games)} new V3 signals to results_v3.json ({len(existing['games'])} total)")
     else:
-        print("\nNo new flagged games to log today")
+        print("\nNo new V3 signals to log today")
 
 if __name__ == "__main__":
     main()
