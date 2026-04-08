@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NBA EDGE V3 — Results</title>
+<link rel="icon" type="image/jpeg" href="icon.jpg">
+<link rel="apple-touch-icon" href="icon.jpg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="NBA Edge V3">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap');
+:root {
+  --bg:#080b10;--surface:#0e1219;--surface2:#141a23;--border:#1e2733;--border2:#2a3545;
+  --accent:#f0c040;--accent2:#40a0f0;--text:#dce8f5;--muted:#5a7090;
+  --green:#30d080;--red:#e03050;--orange:#f07030;--yellow:#f0c040;--critical:#ff1060;
+  --win:#30d080;--loss:#e03050;--push:#5a7090;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;
+  background-image:radial-gradient(ellipse 80% 50% at 50% -20%,rgba(64,160,240,0.06) 0%,transparent 60%);}
+
+/* HEADER */
+.header{padding:20px 32px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:20px;
+  background:rgba(8,11,16,0.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);position:sticky;top:0;z-index:100;}
+.logo{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:26px;letter-spacing:3px;color:var(--accent);text-decoration:none;}
+.logo span{color:var(--accent2);}
+.version-badge{font-family:'DM Mono',monospace;font-size:10px;color:var(--accent2);letter-spacing:1px;
+  background:rgba(64,160,240,0.1);border:1px solid rgba(64,160,240,0.25);border-radius:3px;padding:2px 6px;}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:16px;}
+.nav-link{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-decoration:none;
+  border:1px solid var(--border);padding:6px 12px;border-radius:4px;letter-spacing:1px;transition:all 0.2s;}
+.nav-link:hover{border-color:var(--accent2);color:var(--accent2);}
+.last-updated{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);}
+
+.main{padding:24px 32px;max-width:1200px;margin:0 auto;}
+
+/* DEMO BANNER */
+.demo-banner{background:rgba(240,192,64,0.08);border:1px solid rgba(240,192,64,0.25);border-radius:6px;
+  padding:10px 16px;margin-bottom:20px;font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);
+  display:flex;align-items:center;gap:8px;letter-spacing:0.5px;}
+.demo-banner .icon{font-size:14px;}
+
+/* SUMMARY CARDS */
+.summary-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px;}
+.stat-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+.stat-value{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:32px;line-height:1;}
+.stat-record{font-family:'DM Mono',monospace;font-size:12px;color:var(--text);margin-top:6px;}
+.stat-ci{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:3px;}
+.stat-card.s2 .stat-value{color:var(--green);}
+.stat-card.b2 .stat-value{color:var(--accent);}
+.stat-card.combined .stat-value{color:var(--accent2);}
+
+/* VALIDATION BAR */
+.validation-section{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:18px 20px;margin-bottom:24px;}
+.validation-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
+  letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;}
+.validation-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.validation-stat{font-family:'DM Mono',monospace;font-size:12px;color:var(--text);}
+.validation-stat .label{color:var(--muted);font-size:10px;letter-spacing:1px;}
+.progress-wrap{flex:1;min-width:200px;}
+.progress-bar-bg{height:8px;background:var(--border);border-radius:4px;overflow:hidden;position:relative;}
+.progress-bar-fill{height:100%;border-radius:4px;transition:width 0.6s ease;}
+.progress-info{display:flex;justify-content:space-between;margin-top:6px;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);}
+.target-info{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:8px;}
+.target-info .rate{font-weight:500;}
+
+/* FILTERS */
+.filter-row{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+.filter-group{display:flex;align-items:center;gap:6px;}
+.filter-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-right:4px;}
+.filter-btn{font-family:'DM Mono',monospace;font-size:10px;padding:6px 14px;border-radius:4px;
+  border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;letter-spacing:1px;transition:all 0.15s;}
+.filter-btn:hover{border-color:var(--accent);color:var(--accent);}
+.filter-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(240,192,64,0.06);}
+.filter-sep{color:var(--border2);font-size:14px;margin:0 4px;}
+
+/* TABLE */
+.table-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead{background:var(--surface2);}
+th{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);
+  padding:10px 14px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border);}
+td{padding:10px 14px;border-bottom:1px solid rgba(30,39,51,0.6);white-space:nowrap;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(20,26,35,0.6);}
+.td-date{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+.td-matchup{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;letter-spacing:0.5px;}
+.td-mono{font-family:'DM Mono',monospace;font-size:11px;}
+.td-line{font-family:'DM Mono',monospace;font-size:12px;color:var(--text);}
+.td-detail{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;}
+
+/* SIGNAL PILLS */
+.signal-pill{display:inline-flex;align-items:center;font-family:'DM Mono',monospace;font-weight:500;
+  font-size:10px;padding:3px 10px;border-radius:4px;letter-spacing:1px;}
+.signal-pill.s2{background:rgba(48,208,128,0.12);color:var(--green);border:1px solid rgba(48,208,128,0.3);}
+.signal-pill.b2{background:rgba(240,192,64,0.12);color:var(--accent);border:1px solid rgba(240,192,64,0.3);}
+
+/* RESULT BADGES */
+.badge{display:inline-flex;align-items:center;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  font-size:14px;padding:3px 10px;border-radius:4px;letter-spacing:0.5px;}
+.badge-win{background:rgba(48,208,128,0.12);color:var(--win);border:1px solid rgba(48,208,128,0.3);}
+.badge-loss{background:rgba(224,48,80,0.12);color:var(--loss);border:1px solid rgba(224,48,80,0.3);}
+.badge-push{background:rgba(90,112,144,0.12);color:var(--push);border:1px solid rgba(90,112,144,0.3);}
+.badge-na{color:var(--muted);font-size:12px;font-family:'DM Mono',monospace;}
+
+.empty-state{text-align:center;padding:80px 20px;color:var(--muted);font-family:'DM Mono',monospace;font-size:13px;}
+
+footer{margin-top:40px;padding:20px 32px;border-top:1px solid var(--border);
+  font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);display:flex;justify-content:space-between;
+  letter-spacing:1px;flex-wrap:wrap;gap:10px;}
+
+/* MOBILE */
+@media(max-width:600px){
+  .header{padding:14px 16px;gap:12px;flex-wrap:wrap;}
+  .logo{font-size:22px;}
+  .header-right{margin-left:0;width:100%;justify-content:space-between;}
+  .main{padding:16px;}
+  .summary-row{grid-template-columns:1fr;gap:10px;}
+  .validation-row{flex-direction:column;align-items:stretch;}
+  .filter-row{gap:6px;}
+  .filter-btn{padding:5px 10px;font-size:9px;}
+  .table-wrap{border-radius:6px;}
+  table{font-size:12px;}
+  th,td{padding:8px 10px;}
+  .td-matchup{font-size:14px;}
+  .td-detail{display:none;}
+  footer{flex-direction:column;padding:16px;gap:4px;}
+}
+</style>
+</head>
+<body>
+<header class="header">
+  <a class="logo" href="https://old-head-dev.github.io/NBA-Edge/">NBA<span>EDGE</span></a>
+  <span class="version-badge">V3</span>
+  <div class="header-right">
+    <span class="last-updated" id="last-updated">Loading...</span>
+    <a class="nav-link" href="nba_edge_v3.html">&#8592; LIVE SIGNALS</a>
+  </div>
+</header>
+
+<div class="main">
+  <!-- DEMO BANNER (hidden by default) -->
+  <div class="demo-banner" id="demo-banner" style="display:none;">
+    <span class="icon">&#9888;</span>
+    <span>DEMO MODE — Showing sample data for visual verification. Add <code>?demo=1</code> to URL or wait for real results.</span>
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <div class="summary-row" id="summary-row">
+    <div class="stat-card s2">
+      <div class="stat-label">S2 — Spread (Away ATS)</div>
+      <div class="stat-value" id="s2-pct">--</div>
+      <div class="stat-record" id="s2-record">Awaiting data</div>
+      <div class="stat-ci" id="s2-ci"></div>
+    </div>
+    <div class="stat-card b2">
+      <div class="stat-label">B2 — Both Tired Under</div>
+      <div class="stat-value" id="b2-pct">--</div>
+      <div class="stat-record" id="b2-record">Awaiting data</div>
+      <div class="stat-ci" id="b2-ci"></div>
+    </div>
+    <div class="stat-card combined">
+      <div class="stat-label">Combined</div>
+      <div class="stat-value" id="cb-pct">--</div>
+      <div class="stat-record" id="cb-record">Awaiting data</div>
+      <div class="stat-ci" id="cb-ci"></div>
+    </div>
+  </div>
+
+  <!-- MODEL VALIDATION -->
+  <div class="validation-section">
+    <div class="validation-title">Model Validation — S2 Signal</div>
+    <div class="validation-row">
+      <div class="validation-stat">
+        <div class="label">SAMPLES</div>
+        <span id="val-samples">0 / 50</span>
+      </div>
+      <div class="validation-stat">
+        <div class="label">CURRENT RATE</div>
+        <span id="val-rate">--</span>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="val-bar" style="width:0%;background:var(--muted);"></div>
+        </div>
+        <div class="progress-info">
+          <span id="val-bar-label">0 / 50 samples</span>
+          <span id="val-bar-pct">0%</span>
+        </div>
+      </div>
+    </div>
+    <div class="target-info">
+      Target: <span class="rate" id="val-target">56.8% [50.8-62.6%]</span> (historical backtest, 5 seasons, N=270) &middot;
+      Breakeven: <span class="rate">52.38%</span> at -110
+    </div>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="filter-row">
+    <div class="filter-group">
+      <span class="filter-label">Signal</span>
+      <button class="filter-btn active" data-filter="signal" data-value="ALL" onclick="setSignalFilter('ALL',this)">ALL</button>
+      <button class="filter-btn" data-filter="signal" data-value="S2" onclick="setSignalFilter('S2',this)">S2</button>
+      <button class="filter-btn" data-filter="signal" data-value="B2" onclick="setSignalFilter('B2',this)">B2</button>
+    </div>
+    <span class="filter-sep">|</span>
+    <div class="filter-group">
+      <span class="filter-label">Result</span>
+      <button class="filter-btn active" data-filter="result" data-value="ALL" onclick="setResultFilter('ALL',this)">ALL</button>
+      <button class="filter-btn" data-filter="result" data-value="WIN" onclick="setResultFilter('WIN',this)">WIN</button>
+      <button class="filter-btn" data-filter="result" data-value="LOSS" onclick="setResultFilter('LOSS',this)">LOSS</button>
+      <button class="filter-btn" data-filter="result" data-value="PUSH" onclick="setResultFilter('PUSH',this)">PUSH</button>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-wrap">
+    <table id="results-table">
+      <thead>
+        <tr>
+          <th>DATE</th>
+          <th>MATCHUP</th>
+          <th>SIGNAL</th>
+          <th>TRAVEL</th>
+          <th>SPREAD</th>
+          <th>ATS</th>
+          <th>RESULT</th>
+        </tr>
+      </thead>
+      <tbody id="results-body">
+        <tr><td colspan="7" class="empty-state">Loading results...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<footer>
+  <span>NBA EDGE V3 — RESULTS DASHBOARD</span>
+  <span>DATA: SPORTSGAMEODDS &middot; V3 TRAVEL-BASED MODEL</span>
+  <span>UPDATED DAILY 9AM ET</span>
+</footer>
+
+<script>
+/* ── Demo data for visual verification ── */
+const DEMO_DATA = [
+  {date:"2026-04-08",matchup:"BOS @ LAL",away:"BOS",home:"LAL",signal:"S2",signal_detail:"LAL flew home from DEN (862mi)",
+   home_travel_dist:862,close_spread:-3.5,close_total:224.5,ats_result:"away",signal_result:"WIN"},
+  {date:"2026-04-07",matchup:"MIL @ PHX",away:"MIL",home:"PHX",signal:"S2",signal_detail:"PHX flew home from GSW (653mi)",
+   home_travel_dist:653,close_spread:-5.0,close_total:228.0,ats_result:"home",signal_result:"LOSS"},
+  {date:"2026-04-06",matchup:"DAL @ MIA",away:"DAL",home:"MIA",signal:"B2",signal_detail:"Both teams on BTB, DAL from HOU (1180mi)",
+   home_travel_dist:0,close_spread:-2.5,close_total:218.5,ats_result:"away",signal_result:"WIN"},
+  {date:"2026-04-05",matchup:"DEN @ MIN",away:"DEN",home:"MIN",signal:"S2",signal_detail:"MIN flew home from CHI (355mi)",
+   home_travel_dist:355,close_spread:-4.0,close_total:221.0,ats_result:"push",signal_result:"PUSH"},
+  {date:"2026-04-04",matchup:"GSW @ SAC",away:"GSW",home:"SAC",signal:"S2",signal_detail:"SAC flew home from POR (580mi)",
+   home_travel_dist:580,close_spread:-1.5,close_total:232.0,ats_result:"away",signal_result:"WIN"},
+  {date:"2026-04-03",matchup:"NYK @ CLE",away:"NYK",home:"CLE",signal:"S2",signal_detail:"CLE flew home from IND (263mi)",
+   home_travel_dist:263,close_spread:-6.5,close_total:215.0,ats_result:"away",signal_result:"WIN"},
+  {date:"2026-04-02",matchup:"LAC @ PHX",away:"LAC",home:"PHX",signal:"B2",signal_detail:"Both teams BTB, PHX from DEN (602mi)",
+   home_travel_dist:602,close_spread:-3.0,close_total:220.5,ats_result:"home",signal_result:"LOSS"},
+  {date:"2026-04-01",matchup:"OKC @ HOU",away:"OKC",home:"HOU",signal:"S2",signal_detail:"HOU flew home from SAS (197mi)",
+   home_travel_dist:197,close_spread:-7.0,close_total:226.0,ats_result:"away",signal_result:"WIN"},
+  {date:"2026-03-31",matchup:"ATL @ ORL",away:"ATL",home:"ORL",signal:"S2",signal_detail:"ORL flew home from MIA (236mi)",
+   home_travel_dist:236,close_spread:-2.0,close_total:219.5,ats_result:"home",signal_result:"LOSS"},
+  {date:"2026-03-30",matchup:"TOR @ BKN",away:"TOR",home:"BKN",signal:"S2",signal_detail:"BKN flew home from BOS (190mi)",
+   home_travel_dist:190,close_spread:null,close_total:null,ats_result:null,signal_result:null}
+];
+
+let ALL_GAMES = [];
+let signalFilter = 'ALL';
+let resultFilter = 'ALL';
+let isDemo = false;
+
+/* ── Wilson CI ── */
+function wilsonCI(wins, total, z) {
+  if (z === undefined) z = 1.96;
+  if (total === 0) return {lo: 0, hi: 0};
+  var p = wins / total;
+  var denom = 1 + z * z / total;
+  var centre = (p + z * z / (2 * total)) / denom;
+  var spread = z * Math.sqrt((p * (1 - p) + z * z / (4 * total)) / total) / denom;
+  return {lo: Math.max(0, centre - spread), hi: Math.min(1, centre + spread)};
+}
+
+function pctStr(n) { return (n * 100).toFixed(1) + '%'; }
+
+/* ── Data loading ── */
+async function loadData() {
+  var params = new URLSearchParams(window.location.search);
+  var forceDemo = params.get('demo') === '1';
+
+  try {
+    var r = await fetch('data/results_v3.json?_=' + Date.now());
+    var d = await r.json();
+    var games = d.games || [];
+    var meta = d.meta || {};
+
+    if (games.length === 0 || forceDemo) {
+      ALL_GAMES = DEMO_DATA;
+      isDemo = true;
+      document.getElementById('demo-banner').style.display = 'flex';
+      document.getElementById('last-updated').textContent = 'DEMO MODE';
+    } else {
+      ALL_GAMES = games;
+      isDemo = false;
+      document.getElementById('demo-banner').style.display = 'none';
+      document.getElementById('last-updated').textContent =
+        meta.last_updated ? 'Updated: ' + meta.last_updated : 'No update time';
+    }
+
+    if (meta.historical_rate) {
+      document.getElementById('val-target').textContent = meta.historical_rate.replace(/^.*?(\d)/, '$1');
+    }
+
+    render();
+  } catch(e) {
+    if (forceDemo) {
+      ALL_GAMES = DEMO_DATA;
+      isDemo = true;
+      document.getElementById('demo-banner').style.display = 'flex';
+      document.getElementById('last-updated').textContent = 'DEMO MODE';
+      render();
+    } else {
+      document.getElementById('results-body').innerHTML =
+        '<tr><td colspan="7" class="empty-state">Failed to load results. ' + e.message + '</td></tr>';
+      document.getElementById('last-updated').textContent = 'Load failed';
+    }
+  }
+}
+
+/* ── Formatting ── */
+function formatDate(dateStr) {
+  var months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  var parts = dateStr.split('-');
+  var m = parseInt(parts[1], 10) - 1;
+  var d = parseInt(parts[2], 10);
+  return months[m] + ' ' + d;
+}
+
+function badgeHtml(result) {
+  if (!result) return '<span class="badge-na">\u2014</span>';
+  var r = result.toUpperCase();
+  var cls = r === 'WIN' ? 'win' : r === 'LOSS' ? 'loss' : 'push';
+  return '<span class="badge badge-' + cls + '">' + r + '</span>';
+}
+
+function signalPillHtml(signal) {
+  var s = (signal || '').toUpperCase();
+  if (s === 'S2') return '<span class="signal-pill s2">S2</span>';
+  if (s === 'B2') return '<span class="signal-pill b2">B2</span>';
+  return '<span class="signal-pill" style="color:var(--muted);border-color:var(--border)">' + s + '</span>';
+}
+
+/* ── Stats computation ── */
+function computeStats(games) {
+  var wins = 0, losses = 0, pushes = 0;
+  for (var i = 0; i < games.length; i++) {
+    var r = (games[i].signal_result || '').toUpperCase();
+    if (r === 'WIN') wins++;
+    else if (r === 'LOSS') losses++;
+    else if (r === 'PUSH') pushes++;
+  }
+  var decided = wins + losses;
+  var winPct = decided > 0 ? wins / decided : null;
+  var ci = decided > 0 ? wilsonCI(wins, decided) : {lo: 0, hi: 0};
+  return {wins: wins, losses: losses, pushes: pushes, decided: decided, winPct: winPct, ci: ci};
+}
+
+/* ── Filtering ── */
+function applyFilters(games) {
+  return games.filter(function(g) {
+    if (signalFilter !== 'ALL' && (g.signal || '').toUpperCase() !== signalFilter) return false;
+    if (resultFilter !== 'ALL' && (g.signal_result || '').toUpperCase() !== resultFilter) return false;
+    return true;
+  });
+}
+
+/* ── Render ── */
+function render() {
+  // Sort by date descending
+  var sorted = ALL_GAMES.slice().sort(function(a, b) {
+    return (b.date || '').localeCompare(a.date || '');
+  });
+
+  var filtered = applyFilters(sorted);
+
+  // Compute stats per signal type
+  var s2Games = ALL_GAMES.filter(function(g) { return (g.signal || '').toUpperCase() === 'S2'; });
+  var b2Games = ALL_GAMES.filter(function(g) { return (g.signal || '').toUpperCase() === 'B2'; });
+
+  var s2 = computeStats(s2Games);
+  var b2 = computeStats(b2Games);
+  var cb = computeStats(ALL_GAMES);
+
+  // S2 card
+  if (s2.decided > 0) {
+    document.getElementById('s2-pct').textContent = pctStr(s2.winPct);
+    document.getElementById('s2-record').textContent = s2.wins + 'W-' + s2.losses + 'L-' + s2.pushes + 'P';
+    document.getElementById('s2-ci').textContent = 'CI: ' + pctStr(s2.ci.lo) + ' \u2013 ' + pctStr(s2.ci.hi);
+  } else {
+    document.getElementById('s2-pct').textContent = '--';
+    document.getElementById('s2-record').textContent = 'Awaiting data';
+    document.getElementById('s2-ci').textContent = '';
+  }
+
+  // B2 card
+  if (b2.decided > 0) {
+    document.getElementById('b2-pct').textContent = pctStr(b2.winPct);
+    document.getElementById('b2-record').textContent = b2.wins + 'W-' + b2.losses + 'L-' + b2.pushes + 'P';
+    document.getElementById('b2-ci').textContent = 'CI: ' + pctStr(b2.ci.lo) + ' \u2013 ' + pctStr(b2.ci.hi);
+  } else {
+    document.getElementById('b2-pct').textContent = '--';
+    document.getElementById('b2-record').textContent = 'Awaiting data';
+    document.getElementById('b2-ci').textContent = '';
+  }
+
+  // Combined card
+  if (cb.decided > 0) {
+    document.getElementById('cb-pct').textContent = pctStr(cb.winPct);
+    document.getElementById('cb-record').textContent = cb.wins + 'W-' + cb.losses + 'L-' + cb.pushes + 'P';
+    document.getElementById('cb-ci').textContent = 'CI: ' + pctStr(cb.ci.lo) + ' \u2013 ' + pctStr(cb.ci.hi);
+  } else {
+    document.getElementById('cb-pct').textContent = '--';
+    document.getElementById('cb-record').textContent = 'Awaiting data';
+    document.getElementById('cb-ci').textContent = '';
+  }
+
+  // Validation bar — S2 progress toward 50 samples
+  var s2Total = s2Games.length;
+  var barPct = Math.min(100, Math.round((s2Total / 50) * 100));
+  var barColor = 'var(--muted)';
+  if (s2.decided > 0) {
+    if (s2.winPct >= 0.5238) barColor = 'var(--green)';
+    else if (s2.winPct >= 0.45) barColor = 'var(--orange)';
+    else barColor = 'var(--red)';
+  }
+  document.getElementById('val-bar').style.width = barPct + '%';
+  document.getElementById('val-bar').style.background = barColor;
+  document.getElementById('val-bar-label').textContent = s2Total + ' / 50 samples';
+  document.getElementById('val-bar-pct').textContent = barPct + '%';
+  document.getElementById('val-samples').textContent = s2Total + ' / 50';
+  document.getElementById('val-rate').textContent = s2.decided > 0 ? pctStr(s2.winPct) + ' [' + pctStr(s2.ci.lo) + '-' + pctStr(s2.ci.hi) + ']' : '--';
+
+  // Table
+  var tbody = document.getElementById('results-body');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' +
+      (ALL_GAMES.length === 0
+        ? 'No flagged games logged yet. The nightly script runs at 9am ET.'
+        : 'No games match current filters.') +
+      '</td></tr>';
+    return;
+  }
+
+  var rows = '';
+  for (var i = 0; i < filtered.length; i++) {
+    var g = filtered[i];
+    var spreadDisplay = (g.close_spread !== null && g.close_spread !== undefined)
+      ? (g.close_spread > 0 ? '+' + g.close_spread : '' + g.close_spread)
+      : '\u2014';
+    var travelDisplay = (g.home_travel_dist !== null && g.home_travel_dist !== undefined && g.home_travel_dist > 0)
+      ? g.home_travel_dist + 'mi'
+      : '\u2014';
+    var atsDisplay = g.ats_result ? g.ats_result.toUpperCase() : '\u2014';
+
+    rows += '<tr>' +
+      '<td class="td-date">' + formatDate(g.date) + '</td>' +
+      '<td class="td-matchup">' + (g.matchup || (g.away + ' @ ' + g.home)) + '</td>' +
+      '<td>' + signalPillHtml(g.signal) + '</td>' +
+      '<td class="td-mono">' + travelDisplay + '</td>' +
+      '<td class="td-line">' + spreadDisplay + '</td>' +
+      '<td class="td-mono">' + atsDisplay + '</td>' +
+      '<td>' + badgeHtml(g.signal_result) + '</td>' +
+      '</tr>';
+  }
+  tbody.innerHTML = rows;
+}
+
+/* ── Filter handlers ── */
+function setSignalFilter(value, btn) {
+  signalFilter = value;
+  var btns = document.querySelectorAll('[data-filter="signal"]');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+  btn.classList.add('active');
+  render();
+}
+
+function setResultFilter(value, btn) {
+  resultFilter = value;
+  var btns = document.querySelectorAll('[data-filter="result"]');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+  btn.classList.add('active');
+  render();
+}
+
+loadData();
+</script>
+</body>
+</html>
